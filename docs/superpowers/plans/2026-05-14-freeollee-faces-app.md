@@ -86,6 +86,7 @@ Existing files removed/moved by Task 2:
 - Create: `app/src/main/java/com/blizzardcaron/freeolleefaces/MainActivity.kt`
 - Create: `app/src/main/java/com/blizzardcaron/freeolleefaces/ui/theme/Theme.kt`
 - Create: `app/src/main/res/values/strings.xml`
+- Create: `app/src/main/res/values/themes.xml`
 - Modify: `.gitignore` (project root — currently absent, create it)
 
 - [ ] **Step 1.1: Create root `.gitignore`**
@@ -177,15 +178,15 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ```
+
+(The `kotlin.plugin.compose` plugin already pulls in the Kotlin Android plugin transitively. Applying `kotlin.android` *as well* fails with "Cannot add extension with name 'kotlin', as there is an extension already registered with that name." on Kotlin 2.2.x.)
 
 - [ ] **Step 1.5: Create root `build.gradle.kts`**
 
 ```kotlin
 plugins {
     alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
 ```
@@ -207,7 +208,6 @@ If `gradle` is not on PATH, install Gradle 9.3.1 (or any 8.x+) first via SDKMAN,
 ```kotlin
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -236,12 +236,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
     }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {
@@ -286,7 +287,7 @@ dependencies {
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+        android:theme="@style/Theme.FreeOlleeFaces">
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -305,6 +306,17 @@ dependencies {
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FreeOllee Faces</string>
+</resources>
+```
+
+- [ ] **Step 1.11b: Create `app/src/main/res/values/themes.xml`**
+
+The Android manifest needs an Android-XML theme on the application tag (Compose theming alone isn't enough). Use a minimal one that extends the platform Material theme so we don't have to drag in `com.google.android.material:material` just for resource styles:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FreeOlleeFaces" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>
 ```
 
