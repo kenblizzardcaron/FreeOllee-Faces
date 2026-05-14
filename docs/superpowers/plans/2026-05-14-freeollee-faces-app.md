@@ -502,12 +502,13 @@ class OlleeProtocolTest {
 
     // The payload FreeOllee sends for a value like "Hello " is
     //   inner = 0x02 0x2f 'H' 'e' 'l' 'l' 'o' ' '
-    // CRC-16/CCITT-FALSE of that byte sequence is 0xE52F (verified with
-    // an independent online CRC calculator).
+    // CRC-16/CCITT-FALSE of that byte sequence is 0xC0C2
+    // (verified independently: `python3 -c "import binascii;
+    //  print(hex(binascii.crc_hqx(b'\x02\x2fHello ', 0xFFFF)))"`).
     @Test
-    fun `crc16 over the inner payload for value 'Hello ' is 0xE52F`() {
+    fun `crc16 over the inner payload for value 'Hello ' is 0xC0C2`() {
         val inner = byteArrayOf(0x02, 0x2f) + "Hello ".toByteArray(Charsets.US_ASCII)
-        assertEquals(0xE52F, OlleeProtocol.crc16(inner))
+        assertEquals(0xC0C2, OlleeProtocol.crc16(inner))
     }
 
     // buildPacket must wrap a 6-char value with the exact framing
@@ -523,7 +524,7 @@ class OlleeProtocolTest {
             0x0C,
             0xaa.toByte(),
             0x55,
-            0xE5.toByte(), 0x2F, // CRC of inner
+            0xC0.toByte(), 0xC2.toByte(), // CRC of inner
             0x02, 0x2f,           // inner header
             0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x20 // "Hello "
         )
