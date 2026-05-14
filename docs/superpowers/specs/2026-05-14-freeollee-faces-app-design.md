@@ -150,6 +150,18 @@ Surface every failure on the status line. Add a `Toast` for transient errors (ne
 
 **No instrumented tests** for MVP — BLE and location behavior is verified manually against real hardware.
 
+## Repository housekeeping
+
+The three Ollee app screenshots currently sitting at the repo root were uploaded as design reference, not as app assets. They show the official Sunrise/Sunset face and sync indicator that motivate this project. Move them out of the root into a reference subdirectory and rename them for clarity:
+
+| Current path | New path |
+|---|---|
+| `4F54A1E7-A181-4AFC-8F1A-BE1EB5373557.png` | `docs/reference/ollee-app-screenshots/sunset-face.png` |
+| `E1C67662-1BFE-4CEE-8436-CDDAC22FD080.png` | `docs/reference/ollee-app-screenshots/sync-indicator.png` |
+| `E8FF6D5D-2D43-4A2C-83F4-8C1D9EB11FE5.png` | `docs/reference/ollee-app-screenshots/sunrise-face.png` |
+
+Use `git mv` so history is preserved. The `README.md` at the repo root should pick up a short link to that reference directory so the screenshots are still discoverable from the front page.
+
 ## Open items deferred to build-time
 
 - Exact character-level format strings (resolved by on-watch verification).
