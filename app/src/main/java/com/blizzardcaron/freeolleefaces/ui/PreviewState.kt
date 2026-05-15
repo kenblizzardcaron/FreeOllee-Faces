@@ -1,7 +1,10 @@
 package com.blizzardcaron.freeolleefaces.ui
 
 sealed class PreviewState {
-    /** No fetch yet, or a fetch is in flight. */
+    /** Initial state before any coords are known — typically while the launch-time location fix is in flight. */
+    object WaitingForCoords : PreviewState()
+
+    /** Coords are known and a temperature / sun-event fetch is running. */
     object Loading : PreviewState()
 
     /** The fetch resolved cleanly. [payload] is the literal 6-char string that would go to the watch. */

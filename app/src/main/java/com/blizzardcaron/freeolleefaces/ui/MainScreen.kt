@@ -20,8 +20,8 @@ data class MainScreenState(
     val sending: Boolean = false,
     val watchSelected: Boolean = false,
     val tempUnit: TempUnit = TempUnit.FAHRENHEIT,
-    val tempPreview: PreviewState = PreviewState.Loading,
-    val sunPreview: PreviewState = PreviewState.Loading,
+    val tempPreview: PreviewState = PreviewState.WaitingForCoords,
+    val sunPreview: PreviewState = PreviewState.WaitingForCoords,
 )
 
 data class MainScreenCallbacks(
@@ -153,6 +153,10 @@ private fun PreviewCard(
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             when (state) {
+                is PreviewState.WaitingForCoords -> Text(
+                    "Waiting for coordinates…",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 is PreviewState.Loading -> Text("Loading…", style = MaterialTheme.typography.bodyMedium)
                 is PreviewState.Ready -> {
                     Text(
