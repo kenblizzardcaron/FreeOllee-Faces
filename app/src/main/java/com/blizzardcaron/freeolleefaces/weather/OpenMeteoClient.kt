@@ -1,5 +1,6 @@
 package com.blizzardcaron.freeolleefaces.weather
 
+import com.blizzardcaron.freeolleefaces.format.TempUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONException
@@ -13,14 +14,18 @@ object OpenMeteoClient {
     private const val CONNECT_TIMEOUT_MS = 8000
     private const val READ_TIMEOUT_MS = 8000
 
-    suspend fun currentTempF(lat: Double, lng: Double): Result<Double> =
+    /** Pure URL builder so the unit param is unit-testable without HTTP. */
+    fun buildUrl(lat: Double, lng: Double, unit: TempUnit): URL =
+        URL(
+            "$BASE?latitude=$lat&longitude=$lng" +
+                "&current=temperature_2m&temperature_unit=${unit.openMeteoParam}"
+        )
+
+    /** Fetches `current.temperature_2m` in the requested [unit]. */
+    suspend fun currentTemp(lat: Double, lng: Double, unit: TempUnit): Result<Double> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val url = URL(
-                    "$BASE?latitude=$lat&longitude=$lng" +
-                        "&current=temperature_2m&temperature_unit=fahrenheit"
-                )
-                val conn = url.openConnection() as HttpURLConnection
+                val conn = buildUrl(lat, lng, unit).openConnection() as HttpURLConnection
                 try {
                     conn.connectTimeout = CONNECT_TIMEOUT_MS
                     conn.readTimeout = READ_TIMEOUT_MS
@@ -38,6 +43,14 @@ object OpenMeteoClient {
             }
         }
 
+    /**
+     * v0.1 delegate kept temporarily so callers that hard-code Fahrenheit compile.
+     * Task 5 removes this when MainActivity is rewritten to call [currentTemp] directly.
+     */
+    suspend fun currentTempF(lat: Double, lng: Double): Result<Double> =
+        currentTemp(lat, lng, TempUnit.FAHRENHEIT)
+
+    /** Extracts `current.temperature_2m` from the response JSON. Unit is whatever the URL requested. */
     fun parseCurrentTemperatureF(json: String): Double {
         val root = try {
             JSONObject(json)
