@@ -3,6 +3,7 @@ package com.blizzardcaron.freeolleefaces.format
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalTime
+import com.blizzardcaron.freeolleefaces.format.TempUnit
 
 class DisplayFormatterTest {
 
@@ -23,6 +24,26 @@ class DisplayFormatterTest {
     fun `temperature handles three-digit values`() {
         assertEquals(" 102 F", DisplayFormatter.temperature(102.0))
         assertEquals("-100 F", DisplayFormatter.temperature(-100.0))
+    }
+
+    @Test
+    fun `temperature with explicit Celsius uses C suffix`() {
+        assertEquals("  22 C", DisplayFormatter.temperature(22.0, TempUnit.CELSIUS))
+        assertEquals(" -12 C", DisplayFormatter.temperature(-12.0, TempUnit.CELSIUS))
+    }
+
+    @Test
+    fun `temperature with explicit Fahrenheit matches default overload`() {
+        assertEquals(
+            DisplayFormatter.temperature(72.0),
+            DisplayFormatter.temperature(72.0, TempUnit.FAHRENHEIT)
+        )
+    }
+
+    @Test
+    fun `temperature default overload still produces F suffix`() {
+        // Regression guard for v0.1 callers that pass just a Double.
+        assertEquals("  72 F", DisplayFormatter.temperature(72.0))
     }
 
     @Test

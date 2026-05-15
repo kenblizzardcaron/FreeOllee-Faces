@@ -9,11 +9,12 @@ object DisplayFormatter {
 
     private const val LENGTH = 6
 
-    fun temperature(tempF: Double): String {
-        val rounded = tempF.roundToInt()
-        // 6 chars total: 4-char right-justified number + " F".
-        return "%4d F".format(rounded)
+    fun temperature(value: Double, unit: TempUnit): String {
+        val rounded = value.roundToInt()
+        return "%4d ${unit.symbol}".format(rounded)
     }
+
+    fun temperature(value: Double): String = temperature(value, TempUnit.FAHRENHEIT)
 
     fun sunTime(kind: SunEventKind, time: LocalTime): String {
         val hour24 = time.hour
