@@ -6,8 +6,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.blizzardcaron.freeolleefaces.format.TempUnit
 
 data class MainScreenState(
     val lat: String = "",
@@ -16,8 +18,10 @@ data class MainScreenState(
     val watchLabel: String = "Watch: none selected",
     val status: String = "Ready.",
     val sending: Boolean = false,
-    val latLngValid: Boolean = false,
     val watchSelected: Boolean = false,
+    val tempUnit: TempUnit = TempUnit.FAHRENHEIT,
+    val tempPreview: PreviewState = PreviewState.Loading,
+    val sunPreview: PreviewState = PreviewState.Loading,
 )
 
 data class MainScreenCallbacks(
@@ -26,11 +30,15 @@ data class MainScreenCallbacks(
     val onCustomChange: (String) -> Unit,
     val onSelectWatch: () -> Unit,
     val onUseMyLocation: () -> Unit,
+    val onRefresh: () -> Unit,
+    val onTempUnitChange: (TempUnit) -> Unit,
     val onSendTemperature: () -> Unit,
     val onSendSunTime: () -> Unit,
     val onSendCustom: () -> Unit,
+    val onRetryTemperature: () -> Unit,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     state: MainScreenState,
@@ -44,9 +52,29 @@ fun MainScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("FreeOllee Faces", style = MaterialTheme.typography.headlineSmall)
-        Text(state.watchLabel, style = MaterialTheme.typography.bodyMedium)
+        Row(
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("FreeOllee Faces", style = MaterialTheme.typography.headlineSmall)
+            TextButton(onClick = callbacks.onRefresh) { Text("Refresh") }
+        }
 
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = state.tempUnit == TempUnit.FAHRENHEIT,
+                onClick = { callbacks.onTempUnitChange(TempUnit.FAHRENHEIT) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+            ) { Text("°F") }
+            SegmentedButton(
+                selected = state.tempUnit == TempUnit.CELSIUS,
+                onClick = { callbacks.onTempUnitChange(TempUnit.CELSIUS) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+            ) { Text("°C") }
+        }
+
+        Text(state.watchLabel, style = MaterialTheme.typography.bodyMedium)
         Button(onClick = callbacks.onSelectWatch, modifier = Modifier.fillMaxWidth()) {
             Text("Select watch")
         }
@@ -67,24 +95,27 @@ fun MainScreen(
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
-
         OutlinedButton(onClick = callbacks.onUseMyLocation, modifier = Modifier.fillMaxWidth()) {
             Text("Use my location")
         }
 
         HorizontalDivider()
 
-        Button(
-            onClick = callbacks.onSendTemperature,
-            enabled = state.latLngValid && state.watchSelected && !state.sending,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Send temperature") }
+        PreviewCard(
+            title = "Temperature",
+            state = state.tempPreview,
+            onRetry = callbacks.onRetryTemperature,
+            onSend = callbacks.onSendTemperature,
+            sendEnabled = state.tempPreview is PreviewState.Ready && state.watchSelected && !state.sending,
+        )
 
-        Button(
-            onClick = callbacks.onSendSunTime,
-            enabled = state.latLngValid && state.watchSelected && !state.sending,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Send next sun event") }
+        PreviewCard(
+            title = "Next sun event",
+            state = state.sunPreview,
+            onRetry = null, // sun is local; no retry path
+            onSend = callbacks.onSendSunTime,
+            sendEnabled = state.sunPreview is PreviewState.Ready && state.watchSelected && !state.sending,
+        )
 
         HorizontalDivider()
 
@@ -104,5 +135,48 @@ fun MainScreen(
         HorizontalDivider()
 
         Text(state.status, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun PreviewCard(
+    title: String,
+    state: PreviewState,
+    onRetry: (() -> Unit)?,
+    onSend: () -> Unit,
+    sendEnabled: Boolean,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            when (state) {
+                is PreviewState.Loading -> Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+                is PreviewState.Ready -> {
+                    Text(
+                        "Watch: '${state.payload}'",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                    )
+                    Text(state.human, style = MaterialTheme.typography.bodyMedium)
+                }
+                is PreviewState.Error -> {
+                    Text(state.message, style = MaterialTheme.typography.bodyMedium)
+                    if (onRetry != null) {
+                        TextButton(onClick = onRetry) { Text("Retry") }
+                    }
+                }
+                PreviewState.NoEvent -> Text(
+                    "No sunrise/sunset in next 24 h.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Button(
+                onClick = onSend,
+                enabled = sendEnabled,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Send to watch") }
+        }
     }
 }

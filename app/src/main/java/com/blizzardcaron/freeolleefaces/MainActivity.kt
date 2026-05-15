@@ -19,18 +19,26 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.blizzardcaron.freeolleefaces.ble.OlleeBleClient
 import com.blizzardcaron.freeolleefaces.format.DisplayFormatter
+import com.blizzardcaron.freeolleefaces.format.TempUnit
 import com.blizzardcaron.freeolleefaces.location.LocationSource
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.sun.NextEvent
 import com.blizzardcaron.freeolleefaces.sun.SunCalc
 import com.blizzardcaron.freeolleefaces.ui.BondedDevicesDialog
 import com.blizzardcaron.freeolleefaces.ui.MainScreen
 import com.blizzardcaron.freeolleefaces.ui.MainScreenCallbacks
 import com.blizzardcaron.freeolleefaces.ui.MainScreenState
+import com.blizzardcaron.freeolleefaces.ui.PreviewState
 import com.blizzardcaron.freeolleefaces.ui.theme.FreeOlleeFacesTheme
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,12 +68,98 @@ private fun AppRoot(modifier: Modifier = Modifier) {
                 lng = prefs.lastLng?.toString() ?: "",
                 watchLabel = labelForAddress(context, prefs.watchAddress),
                 watchSelected = prefs.watchAddress != null,
-                latLngValid = validateCoords(prefs.lastLat?.toString() ?: "", prefs.lastLng?.toString() ?: ""),
+                tempUnit = prefs.tempUnit,
             )
         )
     }
 
     var showPicker by remember { mutableStateOf(false) }
+    // Tracks the currently-in-flight refresh job so unit toggles / Refresh taps cancel stale runs.
+    var refreshJob by remember { mutableStateOf<Job?>(null) }
+    var debounceJob by remember { mutableStateOf<Job?>(null) }
+
+    fun update(transform: (MainScreenState) -> MainScreenState) {
+        state = transform(state)
+    }
+
+    fun refreshPreviews(lat: Double, lng: Double, unit: TempUnit) {
+        refreshJob?.cancel()
+        refreshJob = scope.launch {
+            update { it.copy(tempPreview = PreviewState.Loading, sunPreview = PreviewState.Loading) }
+
+            val tempCoroutine = launch {
+                OpenMeteoClient.currentTemp(lat, lng, unit)
+                    .onSuccess { temp ->
+                        val payload = DisplayFormatter.temperature(temp, unit)
+                        val human = "Currently: %.1f°%s".format(Locale.US, temp, unit.symbol)
+                        update { it.copy(tempPreview = PreviewState.Ready(payload, human)) }
+                    }
+                    .onFailure { err ->
+                        update { it.copy(tempPreview = PreviewState.Error("Weather fetch failed: ${err.message}")) }
+                    }
+            }
+
+            val sunCoroutine = launch {
+                val event: NextEvent? = SunCalc.nextEvent(Instant.now(), lat, lng, ZoneId.systemDefault())
+                val newSun = if (event == null) {
+                    PreviewState.NoEvent
+                } else {
+                    val payload = DisplayFormatter.sunTime(event.kind, event.time.toLocalTime())
+                    val pretty = event.time.format(DateTimeFormatter.ofPattern("h:mm a"))
+                    val kindLabel = event.kind.name.lowercase().replaceFirstChar { it.uppercase() }
+                    PreviewState.Ready(payload, "Next: $kindLabel at $pretty local")
+                }
+                update { it.copy(sunPreview = newSun) }
+            }
+
+            tempCoroutine.join()
+            sunCoroutine.join()
+        }
+    }
+
+    fun refreshFromState() {
+        val lat = state.lat.toDoubleOrNull(); val lng = state.lng.toDoubleOrNull()
+        if (lat == null || lng == null || lat !in -90.0..90.0 || lng !in -180.0..180.0) {
+            update { it.copy(
+                tempPreview = PreviewState.Error("Enter coordinates manually to see previews"),
+                sunPreview = PreviewState.Error("Enter coordinates manually to see previews"),
+            ) }
+            return
+        }
+        refreshPreviews(lat, lng, state.tempUnit)
+    }
+
+    // Auto-fetch on launch: try LocationSource if permission held; either way kick off refreshPreviews.
+    LaunchedEffect(Unit) {
+        val hasAnyLocation =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        if (hasAnyLocation) {
+            update { it.copy(status = "Getting location fix…") }
+            locationSource.fetch()
+                .onSuccess { coords ->
+                    prefs.lastLat = coords.lat
+                    prefs.lastLng = coords.lng
+                    update { it.copy(
+                        lat = coords.lat.toString(),
+                        lng = coords.lng.toString(),
+                        status = "Got fix: %.6f, %.6f (%s, %s)".format(
+                            coords.lat, coords.lng,
+                            coords.provider ?: "?",
+                            coords.accuracyM?.let { "±${it.toInt()} m" } ?: "no acc.",
+                        ),
+                    ) }
+                }
+                .onFailure { err ->
+                    update { it.copy(status = "Location failed: ${err.message}. Using saved coordinates.") }
+                }
+        } else {
+            update { it.copy(status = "Using saved coordinates.") }
+        }
+        refreshFromState()
+    }
 
     val btPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -73,38 +167,39 @@ private fun AppRoot(modifier: Modifier = Modifier) {
         if (granted) {
             showPicker = true
         } else {
-            state = state.copy(status = "Bluetooth permission denied — can't list paired watches.")
+            update { it.copy(status = "Bluetooth permission denied — can't list paired watches.") }
         }
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        val any = results.values.any { it }
-        if (any) {
-            scope.launch { fetchLocation(locationSource, prefs) { state = it(state) } }
+        val anyGranted = results.values.any { it }
+        if (anyGranted) {
+            scope.launch { fetchLocationAndRefresh(locationSource, prefs, ::refreshPreviews, state.tempUnit, ::update) }
         } else {
-            state = state.copy(status = "Location permission denied — enter coordinates manually.")
+            update { it.copy(status = "Location permission denied — enter coordinates manually.") }
         }
     }
 
-    fun updateLatLng(lat: String, lng: String) {
-        state = state.copy(lat = lat, lng = lng, latLngValid = validateCoords(lat, lng))
-    }
-
-    fun persistCoordsIfValid() {
-        val lat = state.lat.toDoubleOrNull()
-        val lng = state.lng.toDoubleOrNull()
-        if (lat != null && lng != null) {
-            prefs.lastLat = lat
-            prefs.lastLng = lng
+    fun onCoordEdit(lat: String, lng: String) {
+        update { it.copy(lat = lat, lng = lng) }
+        // Persist immediately if valid; debounce the refresh.
+        val latD = lat.toDoubleOrNull(); val lngD = lng.toDoubleOrNull()
+        if (latD != null && lngD != null && latD in -90.0..90.0 && lngD in -180.0..180.0) {
+            prefs.lastLat = latD; prefs.lastLng = lngD
+        }
+        debounceJob?.cancel()
+        debounceJob = scope.launch {
+            delay(500)
+            refreshFromState()
         }
     }
 
     val callbacks = MainScreenCallbacks(
-        onLatChange = { updateLatLng(it, state.lng); persistCoordsIfValid() },
-        onLngChange = { updateLatLng(state.lat, it); persistCoordsIfValid() },
-        onCustomChange = { state = state.copy(custom = it) },
+        onLatChange = { onCoordEdit(it, state.lng) },
+        onLngChange = { onCoordEdit(state.lat, it) },
+        onCustomChange = { update { s -> s.copy(custom = it) } },
 
         onSelectWatch = {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
@@ -122,7 +217,7 @@ private fun AppRoot(modifier: Modifier = Modifier) {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
             if (hasAny) {
-                scope.launch { fetchLocation(locationSource, prefs) { state = it(state) } }
+                scope.launch { fetchLocationAndRefresh(locationSource, prefs, ::refreshPreviews, state.tempUnit, ::update) }
             } else {
                 locationPermissionLauncher.launch(
                     arrayOf(
@@ -133,46 +228,40 @@ private fun AppRoot(modifier: Modifier = Modifier) {
             }
         },
 
-        onSendTemperature = {
+        onRefresh = { refreshFromState() },
+
+        onTempUnitChange = { newUnit ->
+            prefs.tempUnit = newUnit
+            update { it.copy(tempUnit = newUnit) }
             val lat = state.lat.toDoubleOrNull(); val lng = state.lng.toDoubleOrNull()
+            if (lat != null && lng != null) refreshPreviews(lat, lng, newUnit)
+        },
+
+        onSendTemperature = {
+            val preview = state.tempPreview
             val addr = prefs.watchAddress
-            if (lat == null || lng == null || addr == null) return@MainScreenCallbacks
-            scope.launch {
-                state = state.copy(sending = true, status = "Fetching temperature…")
-                OpenMeteoClient.currentTempF(lat, lng)
-                    .onSuccess { temp ->
-                        val value = DisplayFormatter.temperature(temp)
-                        sendAndReport(ble, addr, value) { state = it(state) }
-                    }
-                    .onFailure { err ->
-                        state = state.copy(sending = false, status = "Weather fetch failed: ${err.message}")
-                    }
-            }
+            if (preview !is PreviewState.Ready || addr == null) return@MainScreenCallbacks
+            scope.launch { sendAndReport(ble, addr, preview.payload, ::update) }
         },
 
         onSendSunTime = {
-            val lat = state.lat.toDoubleOrNull(); val lng = state.lng.toDoubleOrNull()
+            val preview = state.sunPreview
             val addr = prefs.watchAddress
-            if (lat == null || lng == null || addr == null) return@MainScreenCallbacks
-            scope.launch {
-                state = state.copy(sending = true, status = "Computing next sun event…")
-                val event = SunCalc.nextEvent(Instant.now(), lat, lng, ZoneId.systemDefault())
-                if (event == null) {
-                    state = state.copy(sending = false, status = "No sunrise/sunset in next 24h at this location.")
-                } else {
-                    val value = DisplayFormatter.sunTime(event.kind, event.time.toLocalTime())
-                    sendAndReport(ble, addr, value) { state = it(state) }
-                }
-            }
+            if (preview !is PreviewState.Ready || addr == null) return@MainScreenCallbacks
+            scope.launch { sendAndReport(ble, addr, preview.payload, ::update) }
         },
 
         onSendCustom = {
             val addr = prefs.watchAddress ?: return@MainScreenCallbacks
             scope.launch {
                 val value = DisplayFormatter.custom(state.custom)
-                state = state.copy(sending = true, status = "Sending '$value'…")
-                sendAndReport(ble, addr, value) { state = it(state) }
+                sendAndReport(ble, addr, value, ::update)
             }
+        },
+
+        onRetryTemperature = {
+            val lat = state.lat.toDoubleOrNull(); val lng = state.lng.toDoubleOrNull()
+            if (lat != null && lng != null) refreshPreviews(lat, lng, state.tempUnit)
         },
     )
 
@@ -184,11 +273,11 @@ private fun AppRoot(modifier: Modifier = Modifier) {
             devices = devices,
             onPick = { device ->
                 prefs.watchAddress = device.address
-                state = state.copy(
+                update { it.copy(
                     watchLabel = "Watch: ${device.name ?: device.address}",
                     watchSelected = true,
                     status = "Selected ${device.name ?: device.address}.",
-                )
+                ) }
                 showPicker = false
             },
             onDismiss = { showPicker = false },
@@ -208,9 +297,11 @@ private suspend fun sendAndReport(
         .onFailure { err -> update { it.copy(sending = false, status = "Send failed: ${err.message}") } }
 }
 
-private suspend fun fetchLocation(
+private suspend fun fetchLocationAndRefresh(
     locationSource: LocationSource,
     prefs: Prefs,
+    refreshPreviews: (Double, Double, TempUnit) -> Unit,
+    unit: TempUnit,
     update: ((MainScreenState) -> MainScreenState) -> Unit,
 ) {
     update { it.copy(status = "Getting location fix…") }
@@ -222,7 +313,6 @@ private suspend fun fetchLocation(
                 it.copy(
                     lat = coords.lat.toString(),
                     lng = coords.lng.toString(),
-                    latLngValid = true,
                     status = "Got fix: %.6f, %.6f (%s, %s)".format(
                         coords.lat, coords.lng,
                         coords.provider ?: "?",
@@ -230,6 +320,7 @@ private suspend fun fetchLocation(
                     ),
                 )
             }
+            refreshPreviews(coords.lat, coords.lng, unit)
         }
         .onFailure { err ->
             update { it.copy(status = "Location failed: ${err.message}") }
@@ -250,10 +341,4 @@ private fun labelForAddress(context: Context, address: String?): String {
     val mgr = context.getSystemService(BluetoothManager::class.java) ?: return "Watch: $address"
     val device = mgr.adapter?.getRemoteDevice(address)
     return "Watch: ${device?.name ?: address}"
-}
-
-internal fun validateCoords(latStr: String, lngStr: String): Boolean {
-    val lat = latStr.toDoubleOrNull() ?: return false
-    val lng = lngStr.toDoubleOrNull() ?: return false
-    return lat in -90.0..90.0 && lng in -180.0..180.0
 }

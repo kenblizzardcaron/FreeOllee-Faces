@@ -43,13 +43,6 @@ object OpenMeteoClient {
             }
         }
 
-    /**
-     * v0.1 delegate kept temporarily so callers that hard-code Fahrenheit compile.
-     * Task 5 removes this when MainActivity is rewritten to call [currentTemp] directly.
-     */
-    suspend fun currentTempF(lat: Double, lng: Double): Result<Double> =
-        currentTemp(lat, lng, TempUnit.FAHRENHEIT)
-
     /** Extracts `current.temperature_2m` from the response JSON. Unit is whatever the URL requested. */
     fun parseCurrentTemperatureF(json: String): Double {
         val root = try {
