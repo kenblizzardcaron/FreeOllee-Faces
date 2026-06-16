@@ -3,6 +3,14 @@
 A self-contained Android companion app for the Ollee kids' watch, talking to it directly
 over Bluetooth Low Energy.
 
+## Screenshots
+
+| Complications | Alarm | Timer | Settings |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/complications.png" width="200" alt="Complications"> | <img src="docs/screenshots/alarm.png" width="200" alt="Alarm"> | <img src="docs/screenshots/timer.png" width="200" alt="Timer"> | <img src="docs/screenshots/settings.png" width="200" alt="Settings"> |
+
+<sub>Watch address and location in the Settings shot are placeholder values.</sub>
+
 ## Features
 
 **Complications** — pushes one of four values to the watch's 6-character "Name tag"
