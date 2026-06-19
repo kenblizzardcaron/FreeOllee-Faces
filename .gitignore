@@ -23,3 +23,6 @@ local.properties
 # Signing keystores are NEVER committed; CI gets them from GitHub Secrets.
 *.jks
 *.keystore
+
+# Internal planning docs, kept local only (not published to the public repo).
+docs/superpowers/
