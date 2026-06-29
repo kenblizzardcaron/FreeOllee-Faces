@@ -14,4 +14,6 @@ data class ActivityState(
     val altitudeM: Double? = null,
     val pressureHpa: Double? = null,
     val hasFix: Boolean = false,
+    val paused: Boolean = false,
+    val pausedAtMs: Long? = null,
 )
