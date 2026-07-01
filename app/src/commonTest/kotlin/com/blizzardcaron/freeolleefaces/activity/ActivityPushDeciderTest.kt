@@ -5,36 +5,20 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ActivityPushDeciderTest {
+    private val spacing = 30_000L
 
-    @Test fun first_push_always_sends() {
-        assertTrue(ActivityPushDecider.shouldPush(null, "P 8:30", 0L, forced = false))
-    }
+    @Test fun firstPushAlwaysAllowed() =
+        assertTrue(ActivityPushDecider.shouldPush(null, "P5 00", 0, forced = false, minSpacingMs = spacing))
 
-    @Test fun changed_text_sends() {
-        assertTrue(ActivityPushDecider.shouldPush("P 8:31", "P 8:30", 1_000L, forced = false))
-    }
+    @Test fun suppressedBeforeSpacingEvenOnChange() =
+        assertFalse(ActivityPushDecider.shouldPush("P5 00", "P4 59", 15_000, forced = false, minSpacingMs = spacing))
 
-    @Test fun unchanged_text_within_heartbeat_does_not_send() {
-        assertFalse(ActivityPushDecider.shouldPush("P 8:30", "P 8:30", 1_000L, forced = false))
-    }
+    @Test fun allowedAfterSpacingElapses() =
+        assertTrue(ActivityPushDecider.shouldPush("P5 00", "P5 00", 30_000, forced = false, minSpacingMs = spacing))
 
-    @Test fun unchanged_text_past_heartbeat_sends() {
-        assertTrue(ActivityPushDecider.shouldPush("P 8:30", "P 8:30", 3_000L, forced = false))
-    }
+    @Test fun forcedBypassesSpacing() =
+        assertTrue(ActivityPushDecider.shouldPush("P5 00", "d1-23", 1, forced = true, minSpacingMs = spacing))
 
-    @Test fun forced_always_sends() {
-        assertTrue(ActivityPushDecider.shouldPush("P 8:30", "P 8:30", 1_000L, forced = true))
-    }
-
-    @Test fun forced_within_min_interval_does_not_send() {
-        assertFalse(ActivityPushDecider.shouldPush("P 8:30", "P 8:31", 999L, forced = true))
-    }
-
-    @Test fun changed_text_within_min_interval_does_not_send() {
-        assertFalse(ActivityPushDecider.shouldPush("P 8:30", "P 8:31", 500L, forced = false))
-    }
-
-    @Test fun changed_text_at_min_interval_sends() {
-        assertTrue(ActivityPushDecider.shouldPush("P 8:30", "P 8:31", 1_000L, forced = false))
-    }
+    @Test fun smallIntervalHonored() =
+        assertTrue(ActivityPushDecider.shouldPush("P5 00", "P4 59", 3_000, forced = false, minSpacingMs = 3_000L))
 }
