@@ -129,6 +129,7 @@ private fun metricLabel(metric: ActivityMetric): String = when (metric) {
     ActivityMetric.ORIENTATION -> "Compass"
     ActivityMetric.ALTITUDE -> "Altitude"
     ActivityMetric.PRESSURE -> "Pressure"
+    ActivityMetric.AVG_PACE -> "Avg pace"
 }
 
 @Composable
