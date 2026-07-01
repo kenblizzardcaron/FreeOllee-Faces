@@ -41,4 +41,13 @@ class AutoPauseDetectorTest {
         det.onSample(1.5f, 0L)
         assertFalse(det.shouldAutoResume(9_000L))
     }
+
+    @Test fun holdResetsAfterGpsDropout() {
+        val det = AutoPauseDetector(thresholdMps = 0.1f)
+        slow(det, listOf(0L, 1_000L, 2_000L))
+        // GPS drops out; next slow sample arrives well past the stale timeout.
+        det.onSample(0.05f, 10_000L)
+        assertFalse(det.shouldAutoPause(12_000L)) // only 2s since the post-gap streak start
+        assertTrue(det.shouldAutoPause(13_000L))  // 3s after the post-gap first slow sample
+    }
 }

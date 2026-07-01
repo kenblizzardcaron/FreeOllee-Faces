@@ -19,10 +19,16 @@ class AutoPauseDetector(
     private var lastSampleMs: Long? = null
 
     fun onSample(speedMps: Float, nowMs: Long) {
+        val previousSampleMs = lastSampleMs
         lastSampleMs = nowMs
         speeds.addLast(speedMps)
         while (speeds.size > sampleWindow) {
             speeds.removeFirst()
+        }
+        // A GPS gap longer than the timeout breaks the slow streak so the hold never
+        // accumulates across a dropout.
+        if (previousSampleMs != null && nowMs - previousSampleMs > gpsTimeoutMs) {
+            slowSinceMs = null
         }
         if (speedMps < thresholdMps) {
             if (slowSinceMs == null) {
