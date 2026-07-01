@@ -1,5 +1,6 @@
 package com.blizzardcaron.freeolleefaces.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,7 +22,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMetric
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsConfig
 import com.blizzardcaron.freeolleefaces.activity.ActivityMode
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
-import com.blizzardcaron.freeolleefaces.activity.ActivitySummary
+import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 
 /** The Activity tab. Idle shows Start + unit toggle + last-activity summary; running shows the
@@ -35,7 +36,7 @@ fun ActivityScreen(
     state: ActivityState,
     unit: ActivityUnit,
     watchSelected: Boolean,
-    lastSummary: ActivitySummary?,
+    recent: List<ActivityTrack>,
     config: ActivityMetricsConfig,
     callbacks: ActivityCallbacks,
     pushIntervalMs: Long,
@@ -49,7 +50,7 @@ fun ActivityScreen(
         if (state.running) {
             RunningContent(state, unit, watchSelected, config, callbacks)
         } else {
-            IdleContent(unit, lastSummary, callbacks, pushIntervalMs, intervalPresetsMs)
+            IdleContent(unit, recent, callbacks, pushIntervalMs, intervalPresetsMs)
         }
     }
 }
@@ -57,7 +58,7 @@ fun ActivityScreen(
 @Composable
 private fun IdleContent(
     unit: ActivityUnit,
-    lastSummary: ActivitySummary?,
+    recent: List<ActivityTrack>,
     callbacks: ActivityCallbacks,
     pushIntervalMs: Long,
     intervalPresetsMs: List<Long>,
@@ -76,13 +77,30 @@ private fun IdleContent(
     OutlinedButton(onClick = callbacks.onConfigureMetrics, modifier = Modifier.fillMaxWidth()) {
         Text("Configure metrics")
     }
-    if (lastSummary != null) {
-        Card(elevation = CardDefaults.cardElevation()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Last activity", fontWeight = FontWeight.Bold)
-                Text("Distance ${distanceText(lastSummary.distanceM, unit)}")
-                Text("Time ${hms(lastSummary.elapsedTimeMs)}")
-                Text("Avg pace ${paceText(lastSummary.avgPaceSecPerKm, unit)}")
+    RecentActivities(recent, unit, callbacks.onOpenActivity)
+}
+
+private const val RECENT_LIMIT = 3
+
+@Composable
+private fun RecentActivities(
+    recent: List<ActivityTrack>,
+    unit: ActivityUnit,
+    onOpen: (String) -> Unit,
+) {
+    if (recent.isEmpty()) return
+    Text("Recent activities", fontWeight = FontWeight.Bold)
+    for (track in recent.take(RECENT_LIMIT)) {
+        Card(elevation = CardDefaults.cardElevation(), modifier = Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxWidth().padding(12.dp).clickable { onOpen(track.id) },
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                track.summary?.let {
+                    Text("Distance ${distanceText(it.distanceM, unit)}")
+                    Text("Time ${hms(it.elapsedTimeMs)}")
+                    Text("Avg pace ${paceText(it.avgPaceSecPerKm, unit)}", style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }

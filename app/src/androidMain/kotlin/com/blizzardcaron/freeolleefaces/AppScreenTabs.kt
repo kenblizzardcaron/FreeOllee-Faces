@@ -14,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
 import com.blizzardcaron.freeolleefaces.ui.ActivityCallbacks
 import com.blizzardcaron.freeolleefaces.ui.ActivityDetailScreen
 import com.blizzardcaron.freeolleefaces.ui.ActivityHistoryCallbacks
@@ -26,6 +25,7 @@ import com.blizzardcaron.freeolleefaces.ui.Screen
 
 @Composable
 fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
+    viewModel.historyRevision // subscribe: recompose after a delete
     val context = LocalContext.current
     val activityState by viewModel.activity.state.collectAsState()
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -61,7 +61,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         state = activityState,
         unit = viewModel.activity.activityUnit,
         watchSelected = viewModel.activity.watchSelected,
-        lastSummary = AndroidActivityTrackStore(context).latest()?.summary,
+        recent = viewModel.activityHistory(),
         config = viewModel.activity.metricsConfig(),
         pushIntervalMs = viewModel.activity.pushIntervalMs,
         intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
@@ -76,6 +76,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
             onSelectInterval = { viewModel.activity.setPushInterval(it) },
             onPause = { viewModel.activity.onPause() },
             onResume = { viewModel.activity.onResume() },
+            onOpenActivity = { viewModel.openActivity(it) },
         ),
         modifier = modifier,
     )

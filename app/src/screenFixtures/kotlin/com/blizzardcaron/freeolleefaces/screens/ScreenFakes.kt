@@ -167,6 +167,7 @@ object ScreenFakes {
         onSelectInterval = {},
         onPause = {},
         onResume = {},
+        onOpenActivity = {},
     )
     val activityTrack = ActivityTrack(
         id = "t1",
