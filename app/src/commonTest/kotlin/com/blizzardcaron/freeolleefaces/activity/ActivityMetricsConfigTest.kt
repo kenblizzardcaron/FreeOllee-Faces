@@ -5,11 +5,12 @@ import kotlin.test.assertEquals
 
 class ActivityMetricsConfigTest {
 
-    @Test fun default_recording_order_is_all_six() {
+    @Test fun default_recording_order_is_all_seven() {
         assertEquals(
             listOf(
-                ActivityMetric.PACE, ActivityMetric.DISTANCE, ActivityMetric.TIME,
-                ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE, ActivityMetric.PRESSURE,
+                ActivityMetric.PACE, ActivityMetric.AVG_PACE, ActivityMetric.DISTANCE,
+                ActivityMetric.TIME, ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE,
+                ActivityMetric.PRESSURE,
             ),
             ActivityMetricsConfig.DEFAULT.enabledOrder(ActivityMode.RECORDING),
         )
@@ -25,7 +26,7 @@ class ActivityMetricsConfigTest {
     @Test fun moveDown_swaps_recording_pair() {
         val c = ActivityMetricsConfig.DEFAULT.moveDown(ActivityMode.RECORDING, 0)
         assertEquals(
-            listOf(ActivityMetric.DISTANCE, ActivityMetric.PACE, ActivityMetric.TIME),
+            listOf(ActivityMetric.AVG_PACE, ActivityMetric.PACE, ActivityMetric.DISTANCE),
             c.enabledOrder(ActivityMode.RECORDING).take(3),
         )
     }
@@ -56,6 +57,6 @@ class ActivityMetricsConfigTest {
         val c = ActivityMetricsConfig.DEFAULT
             .setEnabled(ActivityMode.RECORDING, ActivityMetric.TIME, false)
             .setEnabled(ActivityMode.RECORDING, ActivityMetric.TIME, true)
-        assertEquals(2, c.recording.indexOfFirst { it.metric == ActivityMetric.TIME })
+        assertEquals(3, c.recording.indexOfFirst { it.metric == ActivityMetric.TIME })
     }
 }

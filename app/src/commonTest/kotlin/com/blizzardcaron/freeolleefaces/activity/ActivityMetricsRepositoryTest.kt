@@ -16,7 +16,7 @@ class ActivityMetricsRepositoryTest {
         val repo = ActivityMetricsRepository(settings)
         repo.moveDown(ActivityMode.RECORDING, 0)
         assertEquals(
-            listOf(ActivityMetric.DISTANCE, ActivityMetric.PACE),
+            listOf(ActivityMetric.AVG_PACE, ActivityMetric.PACE),
             ActivityMetricsRepository(settings).get().enabledOrder(ActivityMode.RECORDING).take(2),
         )
     }

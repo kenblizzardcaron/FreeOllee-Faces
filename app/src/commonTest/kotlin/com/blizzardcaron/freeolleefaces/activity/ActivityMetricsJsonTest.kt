@@ -2,6 +2,7 @@ package com.blizzardcaron.freeolleefaces.activity
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ActivityMetricsJsonTest {
 
@@ -44,5 +45,18 @@ class ActivityMetricsJsonTest {
         // BOGUS dropped; PACE kept disabled; the rest appended enabled.
         assertEquals(false, decoded.recording.first { it.metric == ActivityMetric.PACE }.enabled)
         assertEquals(ActivityMetricsConfig.RECORDING_METRICS.toSet(), decoded.recording.map { it.metric }.toSet())
+    }
+
+    @Test fun avgPaceIsInDefaultRecordingSet() {
+        assertTrue(ActivityMetricsConfig.RECORDING_METRICS.contains(ActivityMetric.AVG_PACE))
+    }
+
+    @Test fun oldStoredConfigGainsAvgPaceOnDecode() {
+        // A config persisted before AVG_PACE existed (recording lacks it).
+        val legacy = """{"recording":[{"m":"PACE","e":true},{"m":"DISTANCE","e":true},
+            {"m":"TIME","e":true},{"m":"ORIENTATION","e":true},{"m":"ALTITUDE","e":true},
+            {"m":"PRESSURE","e":true}],"glance":[{"m":"ORIENTATION","e":true}]}""".trimIndent()
+        val decoded = ActivityMetricsJson.decode(legacy)
+        assertTrue(decoded.recording.any { it.metric == ActivityMetric.AVG_PACE && it.enabled })
     }
 }

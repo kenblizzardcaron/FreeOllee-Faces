@@ -49,6 +49,7 @@ data class ActivityMetricsConfig(
     companion object {
         val RECORDING_METRICS = listOf(
             ActivityMetric.PACE,
+            ActivityMetric.AVG_PACE,
             ActivityMetric.DISTANCE,
             ActivityMetric.TIME,
             ActivityMetric.ORIENTATION,

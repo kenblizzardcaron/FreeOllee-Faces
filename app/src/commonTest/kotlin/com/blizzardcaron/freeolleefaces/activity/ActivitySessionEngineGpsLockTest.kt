@@ -69,7 +69,7 @@ class ActivitySessionEngineGpsLockTest {
         val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMode.RECORDING, ActivityMetric.PACE, false)
         val e = engine(ble(), config)
         e.start()
-        assertEquals(ActivityMetric.DISTANCE, e.state.value.selectedMetric)
+        assertEquals(ActivityMetric.AVG_PACE, e.state.value.selectedMetric)
     }
 
     @Test fun cycle_skips_disabled_glance_metric() = runTest {

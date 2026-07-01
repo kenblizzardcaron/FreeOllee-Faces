@@ -71,10 +71,10 @@ class ActivitySessionEngineTest {
         h.engine.start()
         h.engine.tick(0L)
         val before = h.ble.sentNameplate().size
-        h.engine.cycleMetric()   // PACE -> DISTANCE
+        h.engine.cycleMetric()   // PACE -> AVG_PACE
         h.engine.tick(1_000L)    // within spacing, but forced -> writes immediately
         assertEquals(before + 1, h.ble.sentNameplate().size)
-        assertEquals(ActivityMetric.DISTANCE, h.engine.state.value.selectedMetric)
+        assertEquals(ActivityMetric.AVG_PACE, h.engine.state.value.selectedMetric)
     }
 
     @Test fun push_failure_marks_unreachable_but_keeps_state_running() = runTest {

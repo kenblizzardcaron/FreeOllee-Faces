@@ -27,14 +27,15 @@ class ActivitySessionEngineCycleTest {
         assertEquals(ActivityMetric.ORIENTATION, e.state.value.selectedMetric)
     }
 
-    @Test fun recording_cycles_all_six() = runTest {
+    @Test fun recording_cycles_all_seven() = runTest {
         val e = engine()
         e.start()
-        val seen = buildList { repeat(6) { add(e.state.value.selectedMetric); e.cycleMetric() } }
+        val seen = buildList { repeat(7) { add(e.state.value.selectedMetric); e.cycleMetric() } }
         assertEquals(
             listOf(
-                ActivityMetric.PACE, ActivityMetric.DISTANCE, ActivityMetric.TIME,
-                ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE, ActivityMetric.PRESSURE,
+                ActivityMetric.PACE, ActivityMetric.AVG_PACE, ActivityMetric.DISTANCE,
+                ActivityMetric.TIME, ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE,
+                ActivityMetric.PRESSURE,
             ),
             seen,
         )

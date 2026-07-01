@@ -48,15 +48,15 @@ class ActivityMetricsControllerTest {
     @Test fun moveMetricUp_delegates_to_repo_and_is_visible_via_metricsConfig() {
         val repo = ActivityMetricsRepository(MapSettings())
         val c = controller(repo)
-        // RECORDING_METRICS[1] is DISTANCE; moving index 1 up swaps it with PACE at index 0.
+        // RECORDING_METRICS[1] is AVG_PACE; moving index 1 up swaps it with PACE at index 0.
         val before = c.metricsConfig().recording.map { it.metric }
         assertEquals(ActivityMetric.PACE, before[0])
-        assertEquals(ActivityMetric.DISTANCE, before[1])
+        assertEquals(ActivityMetric.AVG_PACE, before[1])
 
         c.moveMetricUp(ActivityMode.RECORDING, 1)
 
         val after = c.metricsConfig().recording.map { it.metric }
-        assertEquals(ActivityMetric.DISTANCE, after[0])
+        assertEquals(ActivityMetric.AVG_PACE, after[0])
         assertEquals(ActivityMetric.PACE, after[1])
         assertEquals(repo.get(), c.metricsConfig(), "controller reads through the same repo it wrote")
     }
@@ -66,12 +66,12 @@ class ActivityMetricsControllerTest {
         val c = controller(repo)
         val before = c.metricsConfig().recording.map { it.metric }
         assertEquals(ActivityMetric.PACE, before[0])
-        assertEquals(ActivityMetric.DISTANCE, before[1])
+        assertEquals(ActivityMetric.AVG_PACE, before[1])
 
         c.moveMetricDown(ActivityMode.RECORDING, 0)
 
         val after = c.metricsConfig().recording.map { it.metric }
-        assertEquals(ActivityMetric.DISTANCE, after[0])
+        assertEquals(ActivityMetric.AVG_PACE, after[0])
         assertEquals(ActivityMetric.PACE, after[1])
         assertEquals(repo.get(), c.metricsConfig())
     }
