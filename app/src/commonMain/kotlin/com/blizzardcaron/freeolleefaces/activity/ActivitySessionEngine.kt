@@ -41,12 +41,14 @@ class ActivitySessionEngine(
     private var selectedMetric: ActivityMetric = ActivityMetric.PACE
     private var config: ActivityMetricsConfig = ActivityMetricsConfig.DEFAULT
     private var recording = false
+    private var pushIntervalMs: Long = ActivityPushDecider.DEFAULT_MIN_SPACING_MS
     private val pusher = NameplatePusher(ble)
 
     suspend fun start() {
         if (session != null) return
         startedAtMs = now()
         unit = prefs.activityUnit
+        pushIntervalMs = prefs.activityPushIntervalMs
         trackId = newId()
         points.clear()
         config = metricsConfig()
@@ -62,6 +64,7 @@ class ActivitySessionEngine(
         if (session != null) return
         startedAtMs = now()
         unit = prefs.activityUnit
+        pushIntervalMs = prefs.activityPushIntervalMs
         points.clear()
         config = metricsConfig()
         recording = false
@@ -77,6 +80,7 @@ class ActivitySessionEngine(
             return
         }
         if (recording) return
+        pushIntervalMs = prefs.activityPushIntervalMs
         trackId = newId()
         startedAtMs = now()
         points.clear()
@@ -129,7 +133,7 @@ class ActivitySessionEngine(
                 selectedMetric.render(st, unit)
             else -> ACQUIRING_NAMEPLATE
         }
-        val reachable = pusher.maybePush(watchAddress(), raw, nowMs, prev.watchReachable)
+        val reachable = pusher.maybePush(watchAddress(), raw, nowMs, prev.watchReachable, pushIntervalMs)
         _state.value = st.copy(watchReachable = reachable, lastPushText = pusher.lastPushText)
     }
 

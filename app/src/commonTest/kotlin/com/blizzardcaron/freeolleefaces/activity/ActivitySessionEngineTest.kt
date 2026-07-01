@@ -55,12 +55,12 @@ class ActivitySessionEngineTest {
         )
     }
 
-    @Test fun unchanged_render_within_heartbeat_pushes_only_once() = runTest {
+    @Test fun unchanged_render_within_spacing_pushes_only_once() = runTest {
         val h = Harness()
         h.engine.start()
         h.engine.tick(0L)        // first push (TIME defaults? no — PACE warmup "P --:-")
         val firstCount = h.ble.sentNameplate().size
-        h.engine.tick(1_000L)    // identical render, within 3s heartbeat
+        h.engine.tick(1_000L)    // identical render, within default 30s spacing
         assertEquals(firstCount, h.ble.sentNameplate().size)
     }
 
@@ -70,7 +70,7 @@ class ActivitySessionEngineTest {
         h.engine.tick(0L)
         val before = h.ble.sentNameplate().size
         h.engine.cycleMetric()   // PACE -> DISTANCE
-        h.engine.tick(1_000L)    // at floor boundary, but forced
+        h.engine.tick(1_000L)    // within spacing, but forced -> writes immediately
         assertEquals(before + 1, h.ble.sentNameplate().size)
         assertEquals(ActivityMetric.DISTANCE, h.engine.state.value.selectedMetric)
     }
@@ -82,6 +82,19 @@ class ActivitySessionEngineTest {
         h.engine.tick(0L)
         assertFalse(h.engine.state.value.watchReachable)
         assertTrue(h.engine.state.value.running)
+    }
+
+    @Test fun engine_uses_configured_push_interval() = runTest {
+        val h = Harness()
+        h.prefs.activityPushIntervalMs = 3_000L
+        h.engine.start()
+        h.engine.ingest(h.fix(0.0, 0.0), 0L)
+        h.engine.tick(0L)
+        val first = h.ble.sentNameplate().size
+        h.engine.tick(1_000L) // within 3s spacing -> no new write
+        assertEquals(first, h.ble.sentNameplate().size)
+        h.engine.tick(3_000L) // spacing elapsed -> a new write
+        assertTrue(h.ble.sentNameplate().size > first)
     }
 
     @Test fun stop_saves_finalized_track_and_restores_autosleep() = runTest {
