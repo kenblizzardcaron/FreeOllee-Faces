@@ -26,6 +26,8 @@ class ActivityController(
     val state: StateFlow<ActivityState> get() = launcher.state
     val activityUnit: ActivityUnit get() = prefs.activityUnit
     val watchSelected: Boolean get() = prefs.watchAddress != null
+    val pushIntervalMs: Long get() = prefs.activityPushIntervalMs
+    val pushIntervalPresetsMs: List<Long> get() = Prefs.PUSH_INTERVAL_PRESETS_MS
 
     fun onStart() {
         if (!hasLocationPermission()) {
@@ -63,4 +65,16 @@ class ActivityController(
 
     fun setMetricEnabled(mode: ActivityMode, metric: ActivityMetric, enabled: Boolean) =
         metricsRepo.setEnabled(mode, metric, enabled)
+
+    fun onPause() = launcher.pause()
+    fun onResume() = launcher.resume()
+
+    /** Idle-only: the engine reads the interval once at session start (no mid-activity changes). */
+    fun setPushInterval(ms: Long) {
+        if (state.value.running) {
+            showSnackbar("Stop the activity to change the push interval.")
+            return
+        }
+        if (ms in Prefs.PUSH_INTERVAL_PRESETS_MS) prefs.activityPushIntervalMs = ms
+    }
 }

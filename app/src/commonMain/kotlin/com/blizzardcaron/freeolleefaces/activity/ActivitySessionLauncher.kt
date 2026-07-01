@@ -11,6 +11,8 @@ interface ActivitySessionLauncher {
     fun stop()
     fun cycleMetric()
     fun setUnit(unit: ActivityUnit)
+    fun pause()
+    fun resume()
 }
 
 /** Inert launcher: idle state, control is a no-op. Default for tests and watch-less construction. */
@@ -21,4 +23,6 @@ object NoopActivitySessionLauncher : ActivitySessionLauncher {
     override fun stop() = Unit
     override fun cycleMetric() = Unit
     override fun setUnit(unit: ActivityUnit) = Unit
+    override fun pause() = Unit
+    override fun resume() = Unit
 }

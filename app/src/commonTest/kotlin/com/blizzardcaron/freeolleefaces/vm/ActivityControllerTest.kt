@@ -15,13 +15,16 @@ import kotlin.test.assertTrue
 class ActivityControllerTest {
 
     private class FakeLauncher : ActivitySessionLauncher {
-        override val state: StateFlow<ActivityState> = MutableStateFlow(ActivityState())
+        val stateFlow = MutableStateFlow(ActivityState())
+        override val state: StateFlow<ActivityState> = stateFlow
         val calls = mutableListOf<String>()
         override fun start() { calls += "start" }
         override fun startLive() { calls += "startLive" }
         override fun stop() { calls += "stop" }
         override fun cycleMetric() { calls += "cycle" }
         override fun setUnit(unit: ActivityUnit) { calls += "setUnit($unit)" }
+        override fun pause() { calls += "pause" }
+        override fun resume() { calls += "resume" }
     }
 
     private fun controller(
@@ -79,5 +82,33 @@ class ActivityControllerTest {
         val c = controller(launcher, Prefs(MapSettings()), permission = true, mutableListOf())
         c.onMode(); c.onStop()
         assertEquals(listOf("cycle", "stop"), launcher.calls)
+    }
+
+    @Test fun onPause_and_onResume_delegate_to_launcher() {
+        val l = FakeLauncher()
+        val c = controller(l, Prefs(MapSettings()), permission = true, mutableListOf())
+        c.onPause(); c.onResume()
+        assertEquals(listOf("pause", "resume"), l.calls)
+    }
+
+    @Test fun setPushInterval_while_idle_persists_a_preset() {
+        val prefs = Prefs(MapSettings())
+        controller(FakeLauncher(), prefs, permission = true, mutableListOf()).setPushInterval(15_000L)
+        assertEquals(15_000L, prefs.activityPushIntervalMs)
+    }
+
+    @Test fun setPushInterval_ignores_non_preset_values() {
+        val prefs = Prefs(MapSettings())
+        controller(FakeLauncher(), prefs, permission = true, mutableListOf()).setPushInterval(25_000L)
+        assertEquals(30_000L, prefs.activityPushIntervalMs) // unchanged default
+    }
+
+    @Test fun setPushInterval_while_running_is_rejected_with_snackbar() {
+        val launcher = FakeLauncher().apply { stateFlow.value = ActivityState(running = true) }
+        val prefs = Prefs(MapSettings())
+        val snackbars = mutableListOf<String>()
+        controller(launcher, prefs, permission = true, snackbars).setPushInterval(3_000L)
+        assertEquals(30_000L, prefs.activityPushIntervalMs)
+        assertEquals(1, snackbars.size)
     }
 }

@@ -82,6 +82,8 @@ class ActivitySessionService : Service() {
             ACTION_STOP -> stopSession(abnormal = false)
             ACTION_CYCLE -> engine.cycleMetric()
             ACTION_SET_UNIT -> engine.setUnit(prefs.activityUnit)
+            ACTION_PAUSE -> engine.pause(System.currentTimeMillis())
+            ACTION_RESUME -> engine.resume(System.currentTimeMillis())
         }
         return START_STICKY
     }
@@ -268,6 +270,8 @@ class ActivitySessionService : Service() {
         const val ACTION_STOP = "com.blizzardcaron.freeolleefaces.activity.STOP"
         const val ACTION_CYCLE = "com.blizzardcaron.freeolleefaces.activity.CYCLE"
         const val ACTION_SET_UNIT = "com.blizzardcaron.freeolleefaces.activity.SET_UNIT"
+        const val ACTION_PAUSE = "com.blizzardcaron.freeolleefaces.activity.PAUSE"
+        const val ACTION_RESUME = "com.blizzardcaron.freeolleefaces.activity.RESUME"
 
         private fun send(context: Context, action: String, foreground: Boolean) {
             val intent = Intent(context, ActivitySessionService::class.java).setAction(action)
@@ -283,5 +287,7 @@ class ActivitySessionService : Service() {
         fun stop(context: Context) = send(context, ACTION_STOP, foreground = false)
         fun cycle(context: Context) = send(context, ACTION_CYCLE, foreground = false)
         fun setUnit(context: Context) = send(context, ACTION_SET_UNIT, foreground = false)
+        fun pause(context: Context) = send(context, ACTION_PAUSE, foreground = false)
+        fun resume(context: Context) = send(context, ACTION_RESUME, foreground = false)
     }
 }

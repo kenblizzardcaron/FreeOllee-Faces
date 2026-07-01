@@ -11,4 +11,6 @@ class AndroidActivitySessionLauncher(private val context: Context) : ActivitySes
     override fun stop() = ActivitySessionService.stop(context)
     override fun cycleMetric() = ActivitySessionService.cycle(context)
     override fun setUnit(unit: ActivityUnit) = ActivitySessionService.setUnit(context)
+    override fun pause() = ActivitySessionService.pause(context)
+    override fun resume() = ActivitySessionService.resume(context)
 }

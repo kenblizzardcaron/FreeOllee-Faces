@@ -28,6 +28,8 @@ class ActivityMetricsControllerTest {
         override fun stop() {}
         override fun cycleMetric() {}
         override fun setUnit(unit: ActivityUnit) {}
+        override fun pause() {}
+        override fun resume() {}
     }
 
     private fun controller(repo: ActivityMetricsRepository) = ActivityController(
