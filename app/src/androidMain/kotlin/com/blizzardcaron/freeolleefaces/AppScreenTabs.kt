@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,12 +49,6 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         } else {
             livePermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
-    }
-    // Auto-start the live instrument glance on tab entry — but only when location is already
-    // granted, so merely opening the Activity tab never fires a system permission dialog. If a
-    // session is already running (e.g. returning mid-recording), leave it untouched.
-    LaunchedEffect(Unit) {
-        if (!activityState.running && hasLocation()) viewModel.activity.onShowLive()
     }
     ActivityScreen(
         state = activityState,
