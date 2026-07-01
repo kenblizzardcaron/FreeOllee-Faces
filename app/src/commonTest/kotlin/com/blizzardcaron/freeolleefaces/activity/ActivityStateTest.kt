@@ -20,7 +20,7 @@ class ActivityStateTest {
 
     @Test
     fun testPausedStateStoresPauseTime() {
-        val now = System.currentTimeMillis()
+        val now = 1_700_000_000_000L
         val state = ActivityState(
             elapsedMs = 10000,
             distanceMeters = 100.0,
