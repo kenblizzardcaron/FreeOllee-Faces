@@ -177,4 +177,31 @@ class ActivitySessionEngineTest {
         h.engine.ingest(h.fastFix(), 2_000L) // moving fast, but manual pause holds
         assertTrue(h.engine.state.value.paused)
     }
+
+    @Test fun saved_summary_uses_moving_time_not_elapsed() = runTest {
+        val h = Harness()
+        h.clockMs = 0L
+        h.engine.start()
+        h.engine.ingest(h.fix(0.0, 0.0), 0L)
+        h.engine.ingest(h.fix(0.001, 0.0), 10_000L) // ~111 m over 10 s of movement
+        h.engine.pause(10_000L)                      // pause at t=10s
+        h.clockMs = 30_000L
+        h.engine.stop()                              // stop at t=30s -> 20 s paused
+        val s = h.store.latest()!!.summary!!
+        assertEquals(30_000L, s.elapsedTimeMs)       // wall clock unchanged
+        assertEquals(10_000L, s.movingTimeMs)        // excludes the 20 s pause
+        // avg pace over moving time (~10s / 0.111km ~= 90 s/km); elapsed-based would be ~270 s/km
+        assertTrue(s.avgPaceSecPerKm < 150.0, "avg pace must be moving-time based, was ${s.avgPaceSecPerKm}")
+        assertTrue(s.avgPaceSecPerKm > 0.0)
+    }
+
+    @Test fun glance_does_not_auto_pause_when_stationary() = runTest {
+        val h = Harness()
+        h.engine.startLive()
+        h.engine.ingest(h.slowFix(), 0L)
+        h.engine.ingest(h.slowFix(), 1_000L)
+        h.engine.ingest(h.slowFix(), 2_000L)
+        h.engine.ingest(h.slowFix(), 3_000L) // past the 3 s auto-pause hold
+        assertFalse(h.engine.state.value.paused)
+    }
 }

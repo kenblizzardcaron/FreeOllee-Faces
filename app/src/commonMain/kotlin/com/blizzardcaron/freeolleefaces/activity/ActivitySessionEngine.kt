@@ -211,10 +211,12 @@ class ActivitySessionEngine(
     }
 
     private fun snapshot(endedAtMs: Long?, abnormal: Boolean): ActivityTrack {
-        val elapsed = ((endedAtMs ?: now()) - startedAtMs).coerceAtLeast(0L)
+        val end = endedAtMs ?: now()
+        val elapsed = (end - startedAtMs).coerceAtLeast(0L)
+        val moving = session?.movingTimeMs(end) ?: elapsed
         val distance = session?.distanceMeters ?: 0.0
         val avgPaceSecPerKm =
-            if (distance > 0.0) (elapsed / MILLIS_PER_SECOND) / (distance / METERS_PER_KM) else 0.0
+            if (distance > 0.0 && moving > 0L) (moving / MILLIS_PER_SECOND) / (distance / METERS_PER_KM) else 0.0
         return ActivityTrack(
             id = trackId,
             startedAtMs = startedAtMs,
@@ -224,7 +226,7 @@ class ActivitySessionEngine(
             points = points.toList(),
             summary = ActivitySummary(
                 distanceM = distance,
-                movingTimeMs = elapsed, // MVP: moving-gap subtraction is a later refinement
+                movingTimeMs = moving,
                 elapsedTimeMs = elapsed,
                 avgPaceSecPerKm = avgPaceSecPerKm,
             ),
