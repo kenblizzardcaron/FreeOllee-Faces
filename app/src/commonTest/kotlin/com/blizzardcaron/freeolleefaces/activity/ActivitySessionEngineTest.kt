@@ -27,6 +27,8 @@ class ActivitySessionEngineTest {
             watchAddress = { "AA:BB" }, now = { clockMs }, newId = { "trk" },
         )
         fun fix(lat: Double, lng: Double) = Coords(lat, lng, 5f, "gps")
+        fun slowFix() = Coords(0.0, 0.0, 5f, "gps", speedMps = 0.0f)
+        fun fastFix() = Coords(0.0, 0.0, 5f, "gps", speedMps = 5.0f)
     }
 
     @Test fun start_marks_running_and_disables_autosleep() = runTest {
@@ -144,5 +146,35 @@ class ActivitySessionEngineTest {
         assertEquals(1_000L, h.engine.state.value.pausedAtMs)
         h.engine.tick(3_000L)
         assertEquals(1_000L, h.engine.state.value.pausedAtMs)
+    }
+
+    @Test fun auto_pause_after_slow_hold() = runTest {
+        val h = Harness()
+        h.prefs.autoPauseThresholdMps = 0.5f
+        h.engine.start()
+        h.engine.ingest(h.slowFix(), 0L)
+        h.engine.ingest(h.slowFix(), 1_000L)
+        h.engine.ingest(h.slowFix(), 2_000L)
+        h.engine.ingest(h.slowFix(), 3_000L) // window full + 3s hold
+        assertTrue(h.engine.state.value.paused)
+    }
+
+    @Test fun auto_resume_when_moving_again() = runTest {
+        val h = Harness()
+        h.prefs.autoPauseThresholdMps = 0.5f
+        h.engine.start()
+        repeat(4) { h.engine.ingest(h.slowFix(), it * 1_000L) }
+        assertTrue(h.engine.state.value.paused)
+        h.engine.ingest(h.fastFix(), 4_000L)
+        assertFalse(h.engine.state.value.paused)
+    }
+
+    @Test fun manual_pause_not_lifted_by_movement() = runTest {
+        val h = Harness()
+        h.prefs.autoPauseThresholdMps = 0.5f
+        h.engine.start()
+        h.engine.pause(1_000L)
+        h.engine.ingest(h.fastFix(), 2_000L) // moving fast, but manual pause holds
+        assertTrue(h.engine.state.value.paused)
     }
 }

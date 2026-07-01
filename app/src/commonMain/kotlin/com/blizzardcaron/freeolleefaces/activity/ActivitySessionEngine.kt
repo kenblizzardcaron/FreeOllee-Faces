@@ -42,6 +42,7 @@ class ActivitySessionEngine(
     private var config: ActivityMetricsConfig = ActivityMetricsConfig.DEFAULT
     private var recording = false
     private var pauseSource: PauseSource = PauseSource.NONE
+    private var autoPause: AutoPauseDetector? = null
     private var pushIntervalMs: Long = ActivityPushDecider.DEFAULT_MIN_SPACING_MS
     private val pusher = NameplatePusher(ble)
 
@@ -50,6 +51,8 @@ class ActivitySessionEngine(
         startedAtMs = now()
         unit = prefs.activityUnit
         pushIntervalMs = prefs.activityPushIntervalMs
+        autoPause = AutoPauseDetector(prefs.autoPauseThresholdMps)
+        pauseSource = PauseSource.NONE
         trackId = newId()
         points.clear()
         config = metricsConfig()
@@ -66,6 +69,8 @@ class ActivitySessionEngine(
         startedAtMs = now()
         unit = prefs.activityUnit
         pushIntervalMs = prefs.activityPushIntervalMs
+        autoPause = AutoPauseDetector(prefs.autoPauseThresholdMps)
+        pauseSource = PauseSource.NONE
         points.clear()
         config = metricsConfig()
         recording = false
@@ -82,6 +87,8 @@ class ActivitySessionEngine(
         }
         if (recording) return
         pushIntervalMs = prefs.activityPushIntervalMs
+        autoPause = AutoPauseDetector(prefs.autoPauseThresholdMps)
+        pauseSource = PauseSource.NONE
         trackId = newId()
         startedAtMs = now()
         points.clear()
@@ -111,6 +118,14 @@ class ActivitySessionEngine(
             hasFix = true,
             pausedAtMs = _state.value.pausedAtMs,
         )
+        autoPause?.let { det ->
+            det.onSample(coords.speedMps ?: 0f, nowMs)
+            when (pauseSource) {
+                PauseSource.NONE -> if (det.shouldAutoPause(nowMs)) applyPause(nowMs, PauseSource.AUTO)
+                PauseSource.AUTO -> if (det.shouldAutoResume(nowMs)) resume(nowMs)
+                PauseSource.MANUAL -> Unit // manual precedence: movement never lifts a manual pause
+            }
+        }
     }
 
     /** Fold a fresh barometric-pressure reading into state (null = unavailable). */
@@ -141,9 +156,11 @@ class ActivitySessionEngine(
         _state.value = st.copy(watchReachable = reachable, lastPushText = pusher.lastPushText)
     }
 
-    fun pause(nowMs: Long) {
+    fun pause(nowMs: Long) = applyPause(nowMs, PauseSource.MANUAL)
+
+    private fun applyPause(nowMs: Long, source: PauseSource) {
         val s = session ?: return
-        pauseSource = PauseSource.MANUAL
+        pauseSource = source
         s.pause(nowMs)
         pusher.forceNext()
         _state.value = _state.value.copy(paused = true, pausedAtMs = nowMs)
