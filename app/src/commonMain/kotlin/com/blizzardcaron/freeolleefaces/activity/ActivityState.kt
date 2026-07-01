@@ -16,4 +16,5 @@ data class ActivityState(
     val hasFix: Boolean = false,
     val paused: Boolean = false,
     val pausedAtMs: Long? = null,
+    val movingTimeMs: Long = 0L,
 )

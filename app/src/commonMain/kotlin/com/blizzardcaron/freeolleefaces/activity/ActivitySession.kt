@@ -18,6 +18,10 @@ class ActivitySession(
     private var lastAccepted: Coords? = null
     private val window = ArrayDeque<Mark>()
 
+    private var paused = false
+    private var pausedAccumMs = 0L
+    private var pausedSinceMs: Long? = null
+
     var distanceMeters: Double = 0.0
         private set
 
@@ -27,6 +31,10 @@ class ActivitySession(
     fun onSample(coords: Coords, nowMs: Long) {
         val acc = coords.accuracyM
         if (acc != null && acc > accuracyGateM) return
+        if (paused) {
+            lastAccepted = coords
+            return // hold position so resume doesn't count the gap
+        }
         val prev = lastAccepted
         if (prev == null) {
             lastAccepted = coords
@@ -60,12 +68,34 @@ class ActivitySession(
         return spanSec / deltaKm
     }
 
+    fun pause(nowMs: Long) {
+        if (!paused) {
+            paused = true
+            pausedSinceMs = nowMs
+        }
+    }
+
+    fun resume(nowMs: Long) {
+        if (!paused) return
+        pausedSinceMs?.let { pausedAccumMs += (nowMs - it).coerceAtLeast(0L) }
+        pausedSinceMs = null
+        paused = false
+    }
+
+    fun movingTimeMs(nowMs: Long): Long {
+        val elapsed = (nowMs - startedAtMs).coerceAtLeast(0L)
+        val ongoing = pausedSinceMs?.let { (nowMs - it).coerceAtLeast(0L) } ?: 0L
+        return (elapsed - pausedAccumMs - ongoing).coerceAtLeast(0L)
+    }
+
     fun state(selectedMetric: ActivityMetric, nowMs: Long): ActivityState = ActivityState(
         running = true,
         selectedMetric = selectedMetric,
         distanceMeters = distanceMeters,
         recentPaceSecPerKm = recentPaceSecPerKm(nowMs),
         elapsedMs = (nowMs - startedAtMs).coerceAtLeast(0L),
+        movingTimeMs = movingTimeMs(nowMs),
+        paused = paused,
     )
 
     private companion object {

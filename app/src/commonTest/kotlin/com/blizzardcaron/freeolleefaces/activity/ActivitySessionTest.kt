@@ -54,4 +54,28 @@ class ActivitySessionTest {
         assertEquals(3_000L, st.elapsedMs)
         assertTrue(st.running)
     }
+
+    @Test fun movingTimeExcludesPausedSpan() {
+        val s = ActivitySession(startedAtMs = 0L)
+        s.pause(10_000L)
+        s.resume(15_000L)              // 5s paused
+        assertEquals(25_000L, s.movingTimeMs(30_000L)) // 30s elapsed - 5s paused
+    }
+
+    @Test fun movingTimeCountsOngoingPause() {
+        val s = ActivitySession(startedAtMs = 0L)
+        s.pause(10_000L)
+        assertEquals(10_000L, s.movingTimeMs(25_000L)) // frozen at pause instant
+    }
+
+    @Test fun distanceDoesNotAccrueWhilePaused() {
+        val s = ActivitySession(startedAtMs = 0L)
+        s.onSample(Coords(0.0, 0.0, 5f, "gps"), 0L)
+        s.pause(1_000L)
+        s.onSample(Coords(0.01, 0.0, 5f, "gps"), 2_000L) // ~1.1 km jump, but paused
+        assertEquals(0.0, s.distanceMeters)
+        s.resume(3_000L)
+        s.onSample(Coords(0.01, 0.0, 5f, "gps"), 4_000L) // same spot as resume -> no teleport
+        assertEquals(0.0, s.distanceMeters)
+    }
 }
