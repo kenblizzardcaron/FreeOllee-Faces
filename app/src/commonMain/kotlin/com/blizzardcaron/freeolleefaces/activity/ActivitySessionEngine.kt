@@ -69,7 +69,7 @@ class ActivitySessionEngine(
         startedAtMs = now()
         unit = prefs.activityUnit
         pushIntervalMs = prefs.activityPushIntervalMs
-        autoPause = AutoPauseDetector(prefs.autoPauseThresholdMps)
+        autoPause = null // auto-pause is recording-only; the glance never auto-pauses
         pauseSource = PauseSource.NONE
         points.clear()
         config = metricsConfig()
