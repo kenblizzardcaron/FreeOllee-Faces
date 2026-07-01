@@ -41,6 +41,7 @@ class ActivitySessionEngine(
     private var selectedMetric: ActivityMetric = ActivityMetric.PACE
     private var config: ActivityMetricsConfig = ActivityMetricsConfig.DEFAULT
     private var recording = false
+    private var pauseSource: PauseSource = PauseSource.NONE
     private var pushIntervalMs: Long = ActivityPushDecider.DEFAULT_MIN_SPACING_MS
     private val pusher = NameplatePusher(ble)
 
@@ -128,6 +129,7 @@ class ActivitySessionEngine(
             hasFix = prev.hasFix,
         )
         val raw = when {
+            prev.paused -> PAUSED_NAMEPLATE
             prev.hasFix -> selectedMetric.render(st, unit)
             selectedMetric == ActivityMetric.PRESSURE && st.pressureHpa != null ->
                 selectedMetric.render(st, unit)
@@ -135,6 +137,22 @@ class ActivitySessionEngine(
         }
         val reachable = pusher.maybePush(watchAddress(), raw, nowMs, prev.watchReachable, pushIntervalMs)
         _state.value = st.copy(watchReachable = reachable, lastPushText = pusher.lastPushText)
+    }
+
+    fun pause(nowMs: Long) {
+        val s = session ?: return
+        pauseSource = PauseSource.MANUAL
+        s.pause(nowMs)
+        pusher.forceNext()
+        _state.value = _state.value.copy(paused = true, pausedAtMs = nowMs)
+    }
+
+    fun resume(nowMs: Long) {
+        val s = session ?: return
+        pauseSource = PauseSource.NONE
+        s.resume(nowMs)
+        pusher.forceNext()
+        _state.value = _state.value.copy(paused = false, pausedAtMs = null)
     }
 
     fun cycleMetric() {
@@ -169,6 +187,7 @@ class ActivitySessionEngine(
         }
         session = null
         recording = false
+        pauseSource = PauseSource.NONE
         _state.value = ActivityState()
     }
 
@@ -198,5 +217,6 @@ class ActivitySessionEngine(
         const val METERS_PER_KM = 1000.0
         const val SPEED_GATE_MPS = 0.5f
         const val ACQUIRING_NAMEPLATE = " GPS  " // 6 cells: steady GPS-lock indicator until first fix
+        const val PAUSED_NAMEPLATE = "PAUSE " // 6 cells: steady paused indicator
     }
 }

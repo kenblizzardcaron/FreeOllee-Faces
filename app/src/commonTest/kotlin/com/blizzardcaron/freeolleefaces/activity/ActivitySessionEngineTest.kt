@@ -113,4 +113,25 @@ class ActivitySessionEngineTest {
         assertEquals("restore(AA:BB)", h.autoSleep.calls.last())
         assertFalse(h.engine.state.value.running)
     }
+
+    @Test fun manual_pause_sets_state_and_freezes_distance() = runTest {
+        val h = Harness()
+        h.engine.start()
+        h.engine.ingest(h.fix(0.0, 0.0), 0L)
+        h.engine.pause(1_000L)
+        assertTrue(h.engine.state.value.paused)
+        h.engine.ingest(h.fix(0.01, 0.0), 2_000L) // big jump while paused
+        assertEquals(0.0, h.engine.state.value.distanceMeters)
+        h.engine.resume(3_000L)
+        assertFalse(h.engine.state.value.paused)
+    }
+
+    @Test fun tick_while_paused_pushes_paused_nameplate() = runTest {
+        val h = Harness()
+        h.engine.start()
+        h.engine.ingest(h.fix(0.0, 0.0), 0L)
+        h.engine.pause(1_000L)
+        h.engine.tick(1_000L)
+        assertTrue(h.ble.sentNameplate().any { it.trim() == "PAUSE" })
+    }
 }
