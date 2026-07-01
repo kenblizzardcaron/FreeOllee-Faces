@@ -132,6 +132,17 @@ class ActivitySessionEngineTest {
         h.engine.ingest(h.fix(0.0, 0.0), 0L)
         h.engine.pause(1_000L)
         h.engine.tick(1_000L)
-        assertTrue(h.ble.sentNameplate().any { it.trim() == "PAUSE" })
+        assertTrue(h.ble.sentNameplate().any { it == "PAUSE " })
+    }
+
+    @Test fun pausedAtMs_survives_ingest_and_tick() = runTest {
+        val h = Harness()
+        h.engine.start()
+        h.engine.pause(1_000L)
+        assertEquals(1_000L, h.engine.state.value.pausedAtMs)
+        h.engine.ingest(h.fix(0.0, 0.0), 2_000L)
+        assertEquals(1_000L, h.engine.state.value.pausedAtMs)
+        h.engine.tick(3_000L)
+        assertEquals(1_000L, h.engine.state.value.pausedAtMs)
     }
 }

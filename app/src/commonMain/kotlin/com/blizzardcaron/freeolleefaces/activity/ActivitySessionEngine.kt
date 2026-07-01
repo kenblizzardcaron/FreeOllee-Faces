@@ -109,6 +109,7 @@ class ActivitySessionEngine(
             altitudeM = coords.altM ?: _state.value.altitudeM,
             pressureHpa = _state.value.pressureHpa,
             hasFix = true,
+            pausedAtMs = _state.value.pausedAtMs,
         )
     }
 
@@ -127,6 +128,7 @@ class ActivitySessionEngine(
             altitudeM = prev.altitudeM,
             pressureHpa = prev.pressureHpa,
             hasFix = prev.hasFix,
+            pausedAtMs = prev.pausedAtMs,
         )
         val raw = when {
             prev.paused -> PAUSED_NAMEPLATE
