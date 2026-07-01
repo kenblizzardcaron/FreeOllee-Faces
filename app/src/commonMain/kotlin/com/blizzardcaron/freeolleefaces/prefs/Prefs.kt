@@ -362,6 +362,14 @@ class Prefs(
             settings.putString(KEY_LAST_SEND_SUMMARY, value)
         }
 
+    var activityPushIntervalMs: Long
+        get() = settings.getLong(KEY_PUSH_INTERVAL_MS, DEFAULT_PUSH_INTERVAL_MS)
+        set(value) = settings.putLong(KEY_PUSH_INTERVAL_MS, value)
+
+    var autoPauseThresholdMps: Float
+        get() = settings.getFloat(KEY_AUTO_PAUSE_MPS, DEFAULT_AUTO_PAUSE_MPS)
+        set(value) = settings.putFloat(KEY_AUTO_PAUSE_MPS, value)
+
     var lastNotifiedKind: FailureKind?
         get() = settings.getStringOrNull(KEY_LAST_NOTIFIED_KIND)
             ?.let { runCatching { FailureKind.valueOf(it) }.getOrNull() }
@@ -461,5 +469,10 @@ class Prefs(
         private const val KEY_BATTERY_READOUT = "battery_readout"
         private const val KEY_BATTERY_VALUE_MV = "battery_value_mv"
         private const val KEY_BATTERY_FETCHED_MS = "battery_fetched_ms"
+        const val KEY_PUSH_INTERVAL_MS = "activity_push_interval_ms"
+        const val KEY_AUTO_PAUSE_MPS = "activity_auto_pause_mps"
+        const val DEFAULT_PUSH_INTERVAL_MS = 30_000L
+        const val DEFAULT_AUTO_PAUSE_MPS = 0.1f
+        val PUSH_INTERVAL_PRESETS_MS = listOf(3_000L, 15_000L, 30_000L, 60_000L, 300_000L)
     }
 }
