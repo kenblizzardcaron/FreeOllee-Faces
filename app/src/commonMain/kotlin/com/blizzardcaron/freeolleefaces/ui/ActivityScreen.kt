@@ -153,6 +153,13 @@ private fun RunningContent(
             Button(onClick = callbacks.onStart, modifier = Modifier.weight(1f)) { Text("Record") }
         }
     }
+    if (state.recording) {
+        if (state.paused) {
+            Button(onClick = callbacks.onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
+        } else {
+            OutlinedButton(onClick = callbacks.onPause, modifier = Modifier.fillMaxWidth()) { Text("Pause") }
+        }
+    }
     if (!state.recording) {
         OutlinedButton(onClick = callbacks.onStop, modifier = Modifier.fillMaxWidth()) { Text("Close glance") }
     }

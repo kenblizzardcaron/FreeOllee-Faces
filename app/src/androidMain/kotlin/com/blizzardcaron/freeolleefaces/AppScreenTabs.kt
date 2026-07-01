@@ -74,6 +74,8 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
             onOpenHistory = { viewModel.navigateTo(Screen.ActivityHistory) },
             onConfigureMetrics = { viewModel.navigateTo(Screen.ActivityMetricsConfig) },
             onSelectInterval = { viewModel.activity.setPushInterval(it) },
+            onPause = { viewModel.activity.onPause() },
+            onResume = { viewModel.activity.onResume() },
         ),
         modifier = modifier,
     )

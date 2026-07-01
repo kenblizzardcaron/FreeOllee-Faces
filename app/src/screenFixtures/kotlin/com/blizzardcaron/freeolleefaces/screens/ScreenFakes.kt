@@ -165,6 +165,8 @@ object ScreenFakes {
         onOpenHistory = {},
         onConfigureMetrics = {},
         onSelectInterval = {},
+        onPause = {},
+        onResume = {},
     )
     val activityTrack = ActivityTrack(
         id = "t1",
