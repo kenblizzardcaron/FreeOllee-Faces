@@ -63,6 +63,8 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         watchSelected = viewModel.activity.watchSelected,
         lastSummary = AndroidActivityTrackStore(context).latest()?.summary,
         config = viewModel.activity.metricsConfig(),
+        pushIntervalMs = viewModel.activity.pushIntervalMs,
+        intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
         callbacks = ActivityCallbacks(
             onStart = startWithPermission,
             onShowLive = showLiveWithPermission,
@@ -71,6 +73,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
             onToggleUnit = { viewModel.activity.toggleUnit() },
             onOpenHistory = { viewModel.navigateTo(Screen.ActivityHistory) },
             onConfigureMetrics = { viewModel.navigateTo(Screen.ActivityMetricsConfig) },
+            onSelectInterval = { viewModel.activity.setPushInterval(it) },
         ),
         modifier = modifier,
     )

@@ -26,6 +26,10 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 
 /** The Activity tab. Idle shows Start + unit toggle + last-activity summary; running shows the
  *  three live readouts (selected one highlighted), a MODE button, and Stop. */
+// pushIntervalMs/intervalPresetsMs are idle-only state, distinct from ActivityCallbacks (which
+// bundles actions); splitting the screen just to dodge the parameter count would obscure the
+// single entry point more than it helps.
+@Suppress("LongParameterList")
 @Composable
 fun ActivityScreen(
     state: ActivityState,
@@ -34,6 +38,8 @@ fun ActivityScreen(
     lastSummary: ActivitySummary?,
     config: ActivityMetricsConfig,
     callbacks: ActivityCallbacks,
+    pushIntervalMs: Long,
+    intervalPresetsMs: List<Long>,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -43,7 +49,7 @@ fun ActivityScreen(
         if (state.running) {
             RunningContent(state, unit, watchSelected, config, callbacks)
         } else {
-            IdleContent(unit, lastSummary, callbacks)
+            IdleContent(unit, lastSummary, callbacks, pushIntervalMs, intervalPresetsMs)
         }
     }
 }
@@ -53,6 +59,8 @@ private fun IdleContent(
     unit: ActivityUnit,
     lastSummary: ActivitySummary?,
     callbacks: ActivityCallbacks,
+    pushIntervalMs: Long,
+    intervalPresetsMs: List<Long>,
 ) {
     Button(onClick = callbacks.onStart, modifier = Modifier.fillMaxWidth()) { Text("Start activity") }
     OutlinedButton(onClick = callbacks.onShowLive, modifier = Modifier.fillMaxWidth()) {
@@ -61,6 +69,7 @@ private fun IdleContent(
     OutlinedButton(onClick = callbacks.onToggleUnit, modifier = Modifier.fillMaxWidth()) {
         Text("Units: ${if (unit == ActivityUnit.IMPERIAL) "Miles" else "Kilometres"}")
     }
+    IntervalPicker(pushIntervalMs, intervalPresetsMs, callbacks.onSelectInterval)
     OutlinedButton(onClick = callbacks.onOpenHistory, modifier = Modifier.fillMaxWidth()) {
         Text("History")
     }
@@ -77,6 +86,33 @@ private fun IdleContent(
             }
         }
     }
+}
+
+@Composable
+private fun IntervalPicker(
+    selectedMs: Long,
+    presetsMs: List<Long>,
+    onSelect: (Long) -> Unit,
+) {
+    Text("Watch update interval", style = MaterialTheme.typography.bodySmall)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (ms in presetsMs) {
+            val selected = ms == selectedMs
+            if (selected) {
+                Button(onClick = { onSelect(ms) }, modifier = Modifier.weight(1f)) { Text(intervalLabel(ms)) }
+            } else {
+                OutlinedButton(onClick = { onSelect(ms) }, modifier = Modifier.weight(1f)) { Text(intervalLabel(ms)) }
+            }
+        }
+    }
+}
+
+private const val MS_PER_SECOND = 1000L
+private const val SECONDS_PER_MINUTE_UI = 60L
+
+private fun intervalLabel(ms: Long): String {
+    val seconds = ms / MS_PER_SECOND
+    return if (seconds < SECONDS_PER_MINUTE_UI) "${seconds}s" else "${seconds / SECONDS_PER_MINUTE_UI}m"
 }
 
 @Composable

@@ -109,6 +109,7 @@ data class ActivityCallbacks(
     val onToggleUnit: () -> Unit,
     val onOpenHistory: () -> Unit,
     val onConfigureMetrics: () -> Unit,
+    val onSelectInterval: (Long) -> Unit,
 )
 
 /** Activity-history list callbacks. */
