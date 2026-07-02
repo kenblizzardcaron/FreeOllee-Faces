@@ -175,6 +175,14 @@ private fun RunningContent(
         "Watch unreachable"
     }
     Text(watchStatusText, style = MaterialTheme.typography.bodySmall)
+    RunningControls(state, callbacks)
+    if (!state.recording) {
+        OutlinedButton(onClick = callbacks.onStop, modifier = Modifier.fillMaxWidth()) { Text("Close glance") }
+    }
+}
+
+@Composable
+private fun RunningControls(state: ActivityState, callbacks: ActivityCallbacks) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(
             onClick = callbacks.onMode,
@@ -197,9 +205,6 @@ private fun RunningContent(
         } else {
             OutlinedButton(onClick = callbacks.onPause, modifier = Modifier.fillMaxWidth()) { Text("Pause") }
         }
-    }
-    if (!state.recording) {
-        OutlinedButton(onClick = callbacks.onStop, modifier = Modifier.fillMaxWidth()) { Text("Close glance") }
     }
 }
 
