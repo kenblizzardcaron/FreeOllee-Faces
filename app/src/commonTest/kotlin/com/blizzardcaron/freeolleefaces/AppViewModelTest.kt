@@ -56,6 +56,30 @@ class AppViewModelTest {
     private val watchAddress = "AA:BB:CC:DD:EE:FF"
 
     // ---------------------------------------------------------------------------
+    // Startup seeding — battery card remembers the last fetch across restarts
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun initialState_seedsBatteryPreviewAndReadoutFromPrefs() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings())
+        prefs.batteryReadout = com.blizzardcaron.freeolleefaces.format.BatteryReadout.VOLTS
+        prefs.recordBatteryFetch(2850)
+
+        val vm = vmWith(FakeWatchConnection(), prefs)
+
+        val preview = vm.state.batteryPreview
+        assertTrue(
+            preview is com.blizzardcaron.freeolleefaces.ui.PreviewState.Ready,
+            "battery preview should seed from the cached fetch, got $preview",
+        )
+        assertEquals(com.blizzardcaron.freeolleefaces.format.BatteryReadout.VOLTS, vm.state.batteryReadout)
+        assertTrue(
+            vm.state.batteryUpdated?.startsWith("Updated") == true,
+            "batteryUpdated should seed from the cached fetch time: ${vm.state.batteryUpdated}",
+        )
+    }
+
+    // ---------------------------------------------------------------------------
     // Test F — connection status lifecycle + reconnect
     // ---------------------------------------------------------------------------
 

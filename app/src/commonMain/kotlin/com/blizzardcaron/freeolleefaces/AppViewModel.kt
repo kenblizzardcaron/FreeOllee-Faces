@@ -170,6 +170,14 @@ class AppViewModel(
             PreviewState.Ready(DisplayFormatter.steps(it), stepsHuman(it))
         } ?: PreviewState.Loading,
         stepsUpdated = prefs.stepsFetchedMs?.let { "Updated ${clockTime(it)}" },
+        batteryReadout = prefs.batteryReadout,
+        batteryPreview = prefs.batteryValueMv?.let {
+            PreviewState.Ready(
+                DisplayFormatter.battery(it, prefs.batteryReadout),
+                DisplayFormatter.batteryHuman(it, prefs.batteryReadout),
+            )
+        } ?: PreviewState.Loading,
+        batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
         locationLabel = locLabel(prefs.lastLat, prefs.lastLng),
         locationFreshness = freshnessLabel(prefs.lastLocationFetchedMs, nowMs()),
         notificationCount = prefs.notificationCount,

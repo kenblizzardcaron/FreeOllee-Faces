@@ -18,3 +18,7 @@ fun isTempCacheFresh(
     return fetchedMs != null && cacheUnit != null && cacheUnit == currentUnit &&
         nowMs - fetchedMs < intervalMin * MILLIS_PER_MINUTE
 }
+
+/** True when the cached battery voltage is younger than the auto-update interval. */
+fun isBatteryCacheFresh(fetchedMs: Long?, intervalMin: Int, nowMs: Long): Boolean =
+    fetchedMs != null && nowMs - fetchedMs < intervalMin * MILLIS_PER_MINUTE
