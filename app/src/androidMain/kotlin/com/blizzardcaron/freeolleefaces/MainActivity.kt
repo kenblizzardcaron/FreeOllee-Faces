@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
+import com.blizzardcaron.freeolleefaces.activity.AndroidInstrumentsProvider
 import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
 import com.blizzardcaron.freeolleefaces.auto.AlarmRearm
 import com.blizzardcaron.freeolleefaces.auto.AndroidAlarmScheduler
@@ -199,6 +200,7 @@ private fun createAppViewModel(context: Context): AppViewModel {
         versionLabel = versionLabel(versionName, context.packageName),
         activityLauncher = AndroidActivitySessionLauncher(context),
         activityStore = AndroidActivityTrackStore(context),
+        instrumentsProvider = AndroidInstrumentsProvider(context),
         hasLocationPermission = {
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_FINE_LOCATION,
