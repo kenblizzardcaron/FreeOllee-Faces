@@ -10,6 +10,7 @@ import kotlinx.datetime.Instant
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -395,5 +396,22 @@ class PrefsTest {
             listOf(3_000L, 15_000L, 30_000L, 60_000L, 300_000L),
             Prefs.PUSH_INTERVAL_PRESETS_MS,
         )
+    }
+
+    // ---------------------------------------------------------------------------
+    // ringConnStepsEnabled / ringConnAddress
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun ringConnSteps_defaults_off_and_roundtrips() {
+        val prefs = Prefs(MapSettings())
+        assertFalse(prefs.ringConnStepsEnabled)
+        assertNull(prefs.ringConnAddress)
+        prefs.ringConnStepsEnabled = true
+        prefs.ringConnAddress = "F8:79:99:F6:96:2A"
+        assertTrue(prefs.ringConnStepsEnabled)
+        assertEquals("F8:79:99:F6:96:2A", prefs.ringConnAddress)
+        prefs.ringConnAddress = null
+        assertNull(prefs.ringConnAddress)
     }
 }
