@@ -1,4 +1,4 @@
-@file:Suppress("MagicNumber", "ArgumentListWrapping", "Wrapping") // GB/T 32905: algorithm
+@file:Suppress("MagicNumber") // GB/T 32905: algorithm constants
 
 package com.blizzardcaron.freeolleefaces.ring
 
@@ -14,8 +14,14 @@ object Sm3 {
     /** Canonical GB/T 32905 initial vector (7380166f 4914b2b9 172442d7 da8a0600
      *  a96f30bc 163138aa e38dee4d b0fb0e4e). Values > 0x7fffffff need `.toInt()`. */
     private val IV = intArrayOf(
-        0x7380166f, 0x4914b2b9, 0x172442d7, 0xda8a0600.toInt(),
-        0xa96f30bc.toInt(), 0x163138aa, 0xe38dee4d.toInt(), 0xb0fb0e4e.toInt(),
+        0x7380166f,
+        0x4914b2b9,
+        0x172442d7,
+        0xda8a0600.toInt(),
+        0xa96f30bc.toInt(),
+        0x163138aa,
+        0xe38dee4d.toInt(),
+        0xb0fb0e4e.toInt(),
     )
     private const val T0 = 0x79cc4519 // Tj for 0 <= j < 16
     private const val T1 = 0x7a879d8a // Tj for 16 <= j < 64
@@ -52,8 +58,14 @@ object Sm3 {
     }
 
     private fun compress(v: IntArray, w: IntArray, w1: IntArray) {
-        var a = v[0]; var b = v[1]; var c = v[2]; var d = v[3]
-        var e = v[4]; var f = v[5]; var g = v[6]; var h = v[7]
+        var a = v[0]
+        var b = v[1]
+        var c = v[2]
+        var d = v[3]
+        var e = v[4]
+        var f = v[5]
+        var g = v[6]
+        var h = v[7]
         for (j in 0 until 64) {
             val tj = if (j < 16) T0 else T1
             val ss1 = rotl(rotl(a, 12) + e + rotl(tj, j % 32), 7)
@@ -62,11 +74,23 @@ object Sm3 {
                 d + ss2 + w1[j]
             val tt2 = (if (j < 16) (e xor f xor g) else ((e and f) or (e.inv() and g))) +
                 h + ss1 + w[j]
-            d = c; c = rotl(b, 9); b = a; a = tt1
-            h = g; g = rotl(f, 19); f = e; e = p0(tt2)
+            d = c
+            c = rotl(b, 9)
+            b = a
+            a = tt1
+            h = g
+            g = rotl(f, 19)
+            f = e
+            e = p0(tt2)
         }
-        v[0] = v[0] xor a; v[1] = v[1] xor b; v[2] = v[2] xor c; v[3] = v[3] xor d
-        v[4] = v[4] xor e; v[5] = v[5] xor f; v[6] = v[6] xor g; v[7] = v[7] xor h
+        v[0] = v[0] xor a
+        v[1] = v[1] xor b
+        v[2] = v[2] xor c
+        v[3] = v[3] xor d
+        v[4] = v[4] xor e
+        v[5] = v[5] xor f
+        v[6] = v[6] xor g
+        v[7] = v[7] xor h
     }
 
     private fun pad(input: ByteArray): ByteArray {
