@@ -4,7 +4,9 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrackStore
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
+import com.blizzardcaron.freeolleefaces.activity.InstrumentsProvider
 import com.blizzardcaron.freeolleefaces.activity.NoopActivityTrackStore
+import com.blizzardcaron.freeolleefaces.activity.NoopInstrumentsProvider
 import com.blizzardcaron.freeolleefaces.ble.ConnectionStatus
 import com.blizzardcaron.freeolleefaces.fakes.FakeActivityTrackStore
 import com.blizzardcaron.freeolleefaces.fakes.FakeBleClient
@@ -89,6 +91,7 @@ class AppViewModelTest {
         callLog: MutableList<String> = mutableListOf(),
         activityStore: ActivityTrackStore = NoopActivityTrackStore,
         clock: Clock = Clock.System,
+        instruments: InstrumentsProvider = NoopInstrumentsProvider,
     ): AppViewModel = AppViewModel(
         prefs = prefs,
         ble = FakeBleClient(callLog),
@@ -103,6 +106,7 @@ class AppViewModelTest {
         watchConnection = fake,
         activityStore = activityStore,
         clock = clock,
+        instrumentsProvider = instruments,
     )
 
     @Test
@@ -252,5 +256,25 @@ class AppViewModelTest {
         val vm = vmWith(fake, Prefs(MapSettings()))
 
         assertEquals(false, vm.activity.state.value.running)
+    }
+
+    @Test
+    fun instruments_delegate_to_the_injected_provider() = runTest(testScheduler) {
+        val fake = object : com.blizzardcaron.freeolleefaces.activity.InstrumentsProvider {
+            val calls = mutableListOf<String>()
+            private val flow = kotlinx.coroutines.flow.MutableStateFlow(
+                com.blizzardcaron.freeolleefaces.activity.IdleInstruments(headingDeg = 90f),
+            )
+            override val instruments = flow
+            override fun start() { calls += "start" }
+            override fun stop() { calls += "stop" }
+        }
+        val vm = vmWith(FakeWatchConnection(), Prefs(MapSettings()), instruments = fake)
+
+        vm.startInstruments()
+        vm.stopInstruments()
+
+        assertEquals(listOf("start", "stop"), fake.calls)
+        assertEquals(90f, vm.instruments.value.headingDeg)
     }
 }
