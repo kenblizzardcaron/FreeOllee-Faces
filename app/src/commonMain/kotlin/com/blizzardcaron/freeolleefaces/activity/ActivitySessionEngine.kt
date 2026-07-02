@@ -41,6 +41,7 @@ class ActivitySessionEngine(
     private var selectedMetric: ActivityMetric = ActivityMetric.PACE
     private var config: ActivityMetricsConfig = ActivityMetricsConfig.DEFAULT
     private var recording = false
+    private var stopping = false
     private var pauseSource: PauseSource = PauseSource.NONE
     private var autoPause: AutoPauseDetector? = null
     private var pushIntervalMs: Long = ActivityPushDecider.DEFAULT_MIN_SPACING_MS
@@ -205,13 +206,18 @@ class ActivitySessionEngine(
     }
 
     suspend fun stop(abnormal: Boolean = false) {
-        if (session == null) return
+        if (session == null || stopping) return
+        // Surface Stopping right away: the watch restore below is a BLE round-trip, and the UI
+        // would otherwise sit on the running screen looking unresponsive. Also bars re-entry.
+        stopping = true
+        _state.value = _state.value.copy(stopping = true)
         if (recording) {
             store.save(snapshot(endedAtMs = now(), abnormal = abnormal))
             watchAddress()?.let { autoSleep.restoreAfterActivity(it) }
         }
         session = null
         recording = false
+        stopping = false
         pauseSource = PauseSource.NONE
         _state.value = ActivityState()
     }

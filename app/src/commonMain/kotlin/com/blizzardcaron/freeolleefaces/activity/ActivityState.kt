@@ -4,6 +4,8 @@ package com.blizzardcaron.freeolleefaces.activity
 data class ActivityState(
     val running: Boolean = false,
     val recording: Boolean = false,
+    /** Stop tapped; saving the track and restoring the watch (BLE) before returning to idle. */
+    val stopping: Boolean = false,
     val selectedMetric: ActivityMetric = ActivityMetric.PACE,
     val distanceMeters: Double = 0.0,
     val recentPaceSecPerKm: Double? = null,

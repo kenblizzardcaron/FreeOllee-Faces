@@ -176,14 +176,22 @@ private fun RunningContent(
     }
     Text(watchStatusText, style = MaterialTheme.typography.bodySmall)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = callbacks.onMode, modifier = Modifier.weight(1f)) { Text("MODE") }
+        OutlinedButton(
+            onClick = callbacks.onMode,
+            enabled = !state.stopping,
+            modifier = Modifier.weight(1f),
+        ) { Text("MODE") }
         if (state.recording) {
-            Button(onClick = callbacks.onStop, modifier = Modifier.weight(1f)) { Text("Stop") }
+            Button(
+                onClick = callbacks.onStop,
+                enabled = !state.stopping,
+                modifier = Modifier.weight(1f),
+            ) { Text(if (state.stopping) "Stopping…" else "Stop") }
         } else {
             Button(onClick = callbacks.onStart, modifier = Modifier.weight(1f)) { Text("Record") }
         }
     }
-    if (state.recording) {
+    if (state.recording && !state.stopping) {
         if (state.paused) {
             Button(onClick = callbacks.onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
         } else {

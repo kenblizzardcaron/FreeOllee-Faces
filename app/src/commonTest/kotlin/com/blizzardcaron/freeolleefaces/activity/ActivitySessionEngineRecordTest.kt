@@ -6,6 +6,9 @@ import com.blizzardcaron.freeolleefaces.fakes.FakeSessionAutoSleep
 import com.blizzardcaron.freeolleefaces.location.Coords
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,5 +68,49 @@ class ActivitySessionEngineRecordTest {
         assertEquals(600_000L, s.elapsedTimeMs)
         assertTrue(s.movingTimeMs <= s.elapsedTimeMs, "moving ${s.movingTimeMs} > elapsed ${s.elapsedTimeMs}")
         assertTrue(s.distanceM in 100.0..130.0, "distance leaked glance movement: ${s.distanceM}")
+    }
+
+    @Test fun stop_shows_a_stopping_state_while_the_watch_restore_is_in_flight() = runTest {
+        val store = FakeActivityTrackStore()
+        val autoSleep = FakeSessionAutoSleep().apply { restoreGate = CompletableDeferred() }
+        val e = ActivitySessionEngine(
+            ble = FakeBleClient(), store = store, prefs = Prefs(MapSettings()),
+            autoSleep = autoSleep, watchAddress = { "AA:BB" }, now = { 0L }, newId = { "trk" },
+        )
+        e.beginRecording()
+
+        val stopJob = launch { e.stop() }
+        runCurrent() // stop() is now suspended on the BLE restore
+
+        assertTrue(e.state.value.stopping, "state should reflect Stopping while the restore runs")
+        assertTrue(e.state.value.running, "still on the running screen until stop completes")
+
+        autoSleep.restoreGate!!.complete(Unit)
+        stopJob.join()
+        assertEquals(ActivityState(), e.state.value)
+    }
+
+    @Test fun second_stop_while_stopping_does_not_double_save() = runTest {
+        val store = FakeActivityTrackStore()
+        val autoSleep = FakeSessionAutoSleep().apply { restoreGate = CompletableDeferred() }
+        val e = ActivitySessionEngine(
+            ble = FakeBleClient(), store = store, prefs = Prefs(MapSettings()),
+            autoSleep = autoSleep, watchAddress = { "AA:BB" }, now = { 0L }, newId = { "trk" },
+        )
+        e.beginRecording()
+
+        val first = launch { e.stop() }
+        runCurrent()
+        val second = launch { e.stop() } // impatient re-tap while stopping
+        runCurrent()
+
+        autoSleep.restoreGate!!.complete(Unit)
+        first.join()
+        second.join()
+
+        assertEquals(
+            1, autoSleep.calls.count { it.startsWith("restore") },
+            "a re-tap during Stopping must not re-run the stop path: ${autoSleep.calls}",
+        )
     }
 }
