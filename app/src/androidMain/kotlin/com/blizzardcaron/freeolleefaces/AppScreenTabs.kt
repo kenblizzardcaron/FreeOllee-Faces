@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,9 +39,6 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.activity.onStart() }
-    val livePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) viewModel.activity.onShowLive() }
     fun hasLocation() = ContextCompat.checkSelfPermission(
         context, Manifest.permission.ACCESS_FINE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
@@ -51,12 +49,11 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-    val showLiveWithPermission: () -> Unit = {
-        if (hasLocation()) {
-            viewModel.activity.onShowLive()
-        } else {
-            livePermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
+    val instruments by viewModel.instruments.collectAsState()
+    // Sensors run only while this tab is visible AND idle; a recording start disposes the effect.
+    DisposableEffect(activityState.running) {
+        if (!activityState.running) viewModel.startInstruments()
+        onDispose { viewModel.stopInstruments() }
     }
     ActivityScreen(
         state = activityState,
@@ -66,9 +63,9 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         config = viewModel.activity.metricsConfig(),
         pushIntervalMs = pushIntervalMs,
         intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
+        instruments = instruments,
         callbacks = ActivityCallbacks(
             onStart = startWithPermission,
-            onShowLive = showLiveWithPermission,
             onStop = { viewModel.activity.onStop() },
             onMode = { viewModel.activity.onMode() },
             onToggleUnit = { viewModel.activity.toggleUnit() },

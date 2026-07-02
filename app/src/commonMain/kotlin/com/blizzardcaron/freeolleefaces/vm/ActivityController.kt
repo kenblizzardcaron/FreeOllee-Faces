@@ -41,15 +41,6 @@ class ActivityController(
         launcher.start()
     }
 
-    /** Open the non-recording live glance (compass/altitude); same location gate as recording. */
-    fun onShowLive() {
-        if (!hasLocationPermission()) {
-            showSnackbar("Enable location for the instrument glance.")
-            return
-        }
-        launcher.startLive()
-    }
-
     fun onStop() = launcher.stop()
 
     fun onMode() = launcher.cycleMetric()

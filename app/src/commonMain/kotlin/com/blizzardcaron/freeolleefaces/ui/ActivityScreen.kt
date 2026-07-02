@@ -1,3 +1,8 @@
+// One screen, one entry point: idle/running content, the recent-activities list, and the
+// instruments row are all facets of the same Activity tab render path — splitting the file
+// to dodge the function-count threshold would scatter that single entry point across files.
+@file:Suppress("TooManyFunctions")
+
 package com.blizzardcaron.freeolleefaces.ui
 
 import androidx.compose.foundation.clickable
@@ -25,6 +30,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMode
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
+import com.blizzardcaron.freeolleefaces.activity.IdleInstruments
 
 /** The Activity tab. Idle shows Start + unit toggle + last-activity summary; running shows the
  *  three live readouts (selected one highlighted), a MODE button, and Stop. */
@@ -42,6 +48,7 @@ fun ActivityScreen(
     callbacks: ActivityCallbacks,
     pushIntervalMs: Long,
     intervalPresetsMs: List<Long>,
+    instruments: IdleInstruments,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -51,7 +58,7 @@ fun ActivityScreen(
         if (state.running) {
             RunningContent(state, unit, watchSelected, config, callbacks)
         } else {
-            IdleContent(unit, recent, callbacks, pushIntervalMs, intervalPresetsMs)
+            IdleContent(unit, recent, callbacks, pushIntervalMs, intervalPresetsMs, instruments)
         }
     }
 }
@@ -63,11 +70,9 @@ private fun IdleContent(
     callbacks: ActivityCallbacks,
     pushIntervalMs: Long,
     intervalPresetsMs: List<Long>,
+    instruments: IdleInstruments,
 ) {
     Button(onClick = callbacks.onStart, modifier = Modifier.fillMaxWidth()) { Text("Start activity") }
-    OutlinedButton(onClick = callbacks.onShowLive, modifier = Modifier.fillMaxWidth()) {
-        Text("Instrument glance")
-    }
     OutlinedButton(onClick = callbacks.onToggleUnit, modifier = Modifier.fillMaxWidth()) {
         Text("Units: ${if (unit == ActivityUnit.IMPERIAL) "Miles" else "Kilometres"}")
     }
@@ -79,6 +84,20 @@ private fun IdleContent(
         Text("Configure metrics")
     }
     RecentActivities(recent, unit, callbacks.onOpenActivity)
+    InstrumentsRow(instruments, unit)
+}
+
+@Composable
+private fun InstrumentsRow(instruments: IdleInstruments, unit: ActivityUnit) {
+    // Reuse the metric formatters; both return null when the sensor has no reading yet,
+    // which hides that line (and the whole row before the first sensor event).
+    val state = ActivityState(headingDeg = instruments.headingDeg, pressureHpa = instruments.pressureHpa)
+    val compass = ActivityMetric.ORIENTATION.human(state, unit)
+    val pressure = ActivityMetric.PRESSURE.human(state, unit)
+    if (compass == null && pressure == null) return
+    Text("Instruments", fontWeight = FontWeight.Bold)
+    compass?.let { Text("Compass: $it", style = MaterialTheme.typography.bodyMedium) }
+    pressure?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 }
 
 private const val RECENT_LIMIT = 3

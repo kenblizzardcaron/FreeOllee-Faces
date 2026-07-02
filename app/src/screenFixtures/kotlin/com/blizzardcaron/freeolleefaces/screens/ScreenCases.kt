@@ -102,6 +102,7 @@ private fun screenContent(screen: Screen): @Composable () -> Unit = when (screen
                 callbacks = ScreenFakes.activityCallbacks,
                 pushIntervalMs = 30_000L,
                 intervalPresetsMs = com.blizzardcaron.freeolleefaces.prefs.Prefs.PUSH_INTERVAL_PRESETS_MS,
+                instruments = ScreenFakes.instruments,
             )
         }
     }

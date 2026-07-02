@@ -5,6 +5,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivitySummary
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
+import com.blizzardcaron.freeolleefaces.activity.IdleInstruments
 import com.blizzardcaron.freeolleefaces.activity.TrackPoint
 import com.blizzardcaron.freeolleefaces.alarm.Alarm
 import com.blizzardcaron.freeolleefaces.ble.ConnectionStatus
@@ -156,9 +157,9 @@ object ScreenFakes {
         elapsedTimeMs = 1_600_000L,
         avgPaceSecPerKm = 300.0,
     )
+    val instruments = IdleInstruments(headingDeg = 45f, pressureHpa = 1013.0)
     val activityCallbacks = ActivityCallbacks(
         onStart = {},
-        onShowLive = {},
         onStop = {},
         onMode = {},
         onToggleUnit = {},

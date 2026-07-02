@@ -103,7 +103,6 @@ data class SlotEditorCallbacks(
 /** Activity-screen callbacks, bundled to keep the composable signature small. */
 data class ActivityCallbacks(
     val onStart: () -> Unit,
-    val onShowLive: () -> Unit,
     val onStop: () -> Unit,
     val onMode: () -> Unit,
     val onToggleUnit: () -> Unit,

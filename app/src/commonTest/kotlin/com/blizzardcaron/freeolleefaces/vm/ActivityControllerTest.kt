@@ -54,20 +54,6 @@ class ActivityControllerTest {
         assertEquals(listOf("start"), launcher.calls)
     }
 
-    @Test fun onShowLive_without_permission_does_not_launch_and_warns() {
-        val launcher = FakeLauncher()
-        val snackbars = mutableListOf<String>()
-        controller(launcher, Prefs(MapSettings()), permission = false, snackbars).onShowLive()
-        assertTrue(launcher.calls.isEmpty())
-        assertEquals(1, snackbars.size)
-    }
-
-    @Test fun onShowLive_with_permission_starts_live_glance() {
-        val launcher = FakeLauncher()
-        controller(launcher, Prefs(MapSettings()), permission = true, mutableListOf()).onShowLive()
-        assertEquals(listOf("startLive"), launcher.calls)
-    }
-
     @Test fun toggleUnit_flips_pref_and_pushes_to_launcher() {
         val launcher = FakeLauncher()
         val prefs = Prefs(MapSettings()) // defaults IMPERIAL
