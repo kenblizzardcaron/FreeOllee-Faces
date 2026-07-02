@@ -94,6 +94,9 @@ class ActivitySessionEngine(
         points.clear()
         recording = true
         selectedMetric = activeOrder().first()
+        // Recording starts now: a fresh session so the glance's elapsed time/distance
+        // don't leak into the saved track.
+        session = ActivitySession(startedAtMs)
         _state.value = _state.value.copy(recording = true, selectedMetric = selectedMetric)
         watchAddress()?.let { autoSleep.disableForActivity(it) }
     }
