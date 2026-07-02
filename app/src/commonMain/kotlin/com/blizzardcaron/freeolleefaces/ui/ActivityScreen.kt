@@ -3,6 +3,7 @@ package com.blizzardcaron.freeolleefaces.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -114,12 +115,23 @@ private fun IntervalPicker(
 ) {
     Text("Watch update interval", style = MaterialTheme.typography.bodySmall)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Narrow content padding: five chips share a phone-width row, and the default
+        // 24dp button inset wraps "15s"/"30s" onto two lines.
+        val chipPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
         for (ms in presetsMs) {
             val selected = ms == selectedMs
             if (selected) {
-                Button(onClick = { onSelect(ms) }, modifier = Modifier.weight(1f)) { Text(intervalLabel(ms)) }
+                Button(
+                    onClick = { onSelect(ms) },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = chipPadding,
+                ) { Text(intervalLabel(ms), maxLines = 1) }
             } else {
-                OutlinedButton(onClick = { onSelect(ms) }, modifier = Modifier.weight(1f)) { Text(intervalLabel(ms)) }
+                OutlinedButton(
+                    onClick = { onSelect(ms) },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = chipPadding,
+                ) { Text(intervalLabel(ms), maxLines = 1) }
             }
         }
     }
