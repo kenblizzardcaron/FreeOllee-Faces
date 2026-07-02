@@ -142,7 +142,6 @@ object ScreenFakes {
 
     val activityState = ActivityState(
         running = true,
-        recording = true,
         distanceMeters = 1234.0,
         recentPaceSecPerKm = 300.0,
         elapsedMs = 600_000L,

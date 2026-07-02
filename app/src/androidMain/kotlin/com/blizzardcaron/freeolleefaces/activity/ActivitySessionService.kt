@@ -89,12 +89,9 @@ class ActivitySessionService : Service() {
 
     // The location permission is gated upstream by ActivityController.onStart() — the engine
     // never reaches the service's ACTION_START without ACCESS_FINE_LOCATION already granted.
-    // When a live glance is already running, ACTION_START upgrades it in place to a recording.
+    // A session is always a recording, so ACTION_START while one is already running is a no-op.
     private fun startSession() {
-        if (ActivitySessionHost.isRunning) {
-            scope.launch { engine.beginRecording() }
-            return
-        }
+        if (ActivitySessionHost.isRunning) return
         ActivitySessionHost.isRunning = true
         startForegroundCompat()
         loops = launchLoops { engine.start() }

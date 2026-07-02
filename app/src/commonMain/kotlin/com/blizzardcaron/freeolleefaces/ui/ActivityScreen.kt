@@ -179,25 +179,19 @@ private fun RunningContent(
         }
     }
     // Show each metric exactly as the watch renders it (faithful segment preview), for whichever
-    // metrics are enabled (and in the order configured) for the current mode.
-    val mode = if (state.recording) ActivityMode.RECORDING else ActivityMode.GLANCE
-    for (metric in config.enabledOrder(mode)) {
+    // metrics are enabled (and in the order configured) for recording.
+    for (metric in config.enabledOrder(ActivityMode.RECORDING)) {
         MetricReadout(metricLabel(metric), metric, state, unit)
     }
     val watchStatusText = if (!watchSelected) {
-        if (state.recording) "No watch — recording only" else "No watch — glance only"
+        "No watch — recording only"
     } else if (state.watchReachable) {
         "Watch: showing ${state.lastPushText ?: "…"}"
-    } else if (state.recording) {
-        "Watch unreachable — recording continues"
     } else {
-        "Watch unreachable"
+        "Watch unreachable — recording continues"
     }
     Text(watchStatusText, style = MaterialTheme.typography.bodySmall)
     RunningControls(state, callbacks)
-    if (!state.recording) {
-        OutlinedButton(onClick = callbacks.onStop, modifier = Modifier.fillMaxWidth()) { Text("Close glance") }
-    }
 }
 
 @Composable
@@ -208,17 +202,13 @@ private fun RunningControls(state: ActivityState, callbacks: ActivityCallbacks) 
             enabled = !state.stopping,
             modifier = Modifier.weight(1f),
         ) { Text("MODE") }
-        if (state.recording) {
-            Button(
-                onClick = callbacks.onStop,
-                enabled = !state.stopping,
-                modifier = Modifier.weight(1f),
-            ) { Text(if (state.stopping) "Stopping…" else "Stop") }
-        } else {
-            Button(onClick = callbacks.onStart, modifier = Modifier.weight(1f)) { Text("Record") }
-        }
+        Button(
+            onClick = callbacks.onStop,
+            enabled = !state.stopping,
+            modifier = Modifier.weight(1f),
+        ) { Text(if (state.stopping) "Stopping…" else "Stop") }
     }
-    if (state.recording && !state.stopping) {
+    if (!state.stopping) {
         if (state.paused) {
             Button(onClick = callbacks.onResume, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
         } else {

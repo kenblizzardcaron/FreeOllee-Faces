@@ -3,7 +3,6 @@ package com.blizzardcaron.freeolleefaces.activity
 /** Immutable live state of the running activity (not persisted). */
 data class ActivityState(
     val running: Boolean = false,
-    val recording: Boolean = false,
     /** Stop tapped; saving the track and restoring the watch (BLE) before returning to idle. */
     val stopping: Boolean = false,
     val selectedMetric: ActivityMetric = ActivityMetric.PACE,

@@ -14,7 +14,7 @@ import kotlin.random.Random
 private const val ID_RANDOM_BOUND = 1_000_000
 
 /**
- * Orchestrates a live activity: feeds GPS fixes into [ActivitySession], renders the selected
+ * Orchestrates a recording activity: feeds GPS fixes into [ActivitySession], renders the selected
  * metric, decides + performs name-tag pushes, records the track, and brackets the session with
  * auto-sleep disable/restore. Owns no coroutines — the Android service drives [ingest]/[tick].
  */
@@ -40,7 +40,6 @@ class ActivitySessionEngine(
     private val points = mutableListOf<TrackPoint>()
     private var selectedMetric: ActivityMetric = ActivityMetric.PACE
     private var config: ActivityMetricsConfig = ActivityMetricsConfig.DEFAULT
-    private var recording = false
     private var stopping = false
     private var pauseSource: PauseSource = PauseSource.NONE
     private var autoPause: AutoPauseDetector? = null
@@ -57,55 +56,16 @@ class ActivitySessionEngine(
         trackId = newId()
         points.clear()
         config = metricsConfig()
-        recording = true
         selectedMetric = activeOrder().first()
         session = ActivitySession(startedAtMs)
-        _state.value = ActivityState(running = true, recording = true, selectedMetric = selectedMetric)
-        watchAddress()?.let { autoSleep.disableForActivity(it) }
-    }
-
-    /** Start a non-recording live session for the instrument glance (compass/altitude); saves no track. */
-    suspend fun startLive() {
-        if (session != null) return
-        startedAtMs = now()
-        unit = prefs.activityUnit
-        pushIntervalMs = prefs.activityPushIntervalMs
-        autoPause = null // auto-pause is recording-only; the glance never auto-pauses
-        pauseSource = PauseSource.NONE
-        points.clear()
-        config = metricsConfig()
-        recording = false
-        selectedMetric = activeOrder().first()
-        session = ActivitySession(startedAtMs)
-        _state.value = ActivityState(running = true, recording = false, selectedMetric = selectedMetric)
-    }
-
-    /** Upgrade a running live session to a recording one (fresh track from now); cold-starts if idle. */
-    suspend fun beginRecording() {
-        if (session == null) {
-            start()
-            return
-        }
-        if (recording) return
-        pushIntervalMs = prefs.activityPushIntervalMs
-        autoPause = AutoPauseDetector(prefs.autoPauseThresholdMps)
-        pauseSource = PauseSource.NONE
-        trackId = newId()
-        startedAtMs = now()
-        points.clear()
-        recording = true
-        selectedMetric = activeOrder().first()
-        // Recording starts now: a fresh session so the glance's elapsed time/distance
-        // don't leak into the saved track.
-        session = ActivitySession(startedAtMs)
-        _state.value = _state.value.copy(recording = true, selectedMetric = selectedMetric)
+        _state.value = ActivityState(running = true, selectedMetric = selectedMetric)
         watchAddress()?.let { autoSleep.disableForActivity(it) }
     }
 
     suspend fun ingest(coords: Coords, nowMs: Long) {
         val s = session ?: return
         s.onSample(coords, nowMs)
-        if (recording) points += TrackPoint(nowMs, coords.lat, coords.lng, coords.accuracyM, coords.altM)
+        points += TrackPoint(nowMs, coords.lat, coords.lng, coords.accuracyM, coords.altM)
         val heading =
             if (coords.bearingDeg != null && (coords.speedMps ?: 0f) >= SPEED_GATE_MPS) {
                 coords.bearingDeg
@@ -115,7 +75,6 @@ class ActivitySessionEngine(
         _state.value = s.state(selectedMetric, nowMs).copy(
             watchReachable = _state.value.watchReachable,
             lastPushText = pusher.lastPushText,
-            recording = recording,
             headingDeg = heading,
             altitudeM = coords.altM ?: _state.value.altitudeM,
             pressureHpa = _state.value.pressureHpa,
@@ -142,7 +101,6 @@ class ActivitySessionEngine(
         val s = session ?: return
         val prev = _state.value
         val st = s.state(selectedMetric, nowMs).copy(
-            recording = recording,
             headingDeg = prev.headingDeg,
             altitudeM = prev.altitudeM,
             pressureHpa = prev.pressureHpa,
@@ -189,12 +147,8 @@ class ActivitySessionEngine(
         _state.value = _state.value.copy(selectedMetric = selectedMetric)
     }
 
-    private fun activeOrder(): List<ActivityMetric> {
-        val mode = if (recording) ActivityMode.RECORDING else ActivityMode.GLANCE
-        return config.enabledOrder(mode).ifEmpty {
-            listOf(if (recording) ActivityMetric.PACE else ActivityMetric.ORIENTATION)
-        }
-    }
+    private fun activeOrder(): List<ActivityMetric> =
+        config.enabledOrder(ActivityMode.RECORDING).ifEmpty { listOf(ActivityMetric.PACE) }
 
     fun setUnit(newUnit: ActivityUnit) {
         unit = newUnit
@@ -202,7 +156,7 @@ class ActivitySessionEngine(
     }
 
     suspend fun flush() {
-        if (session != null && recording) store.save(snapshot(endedAtMs = null, abnormal = false))
+        if (session != null) store.save(snapshot(endedAtMs = null, abnormal = false))
     }
 
     suspend fun stop(abnormal: Boolean = false) {
@@ -211,12 +165,9 @@ class ActivitySessionEngine(
         // would otherwise sit on the running screen looking unresponsive. Also bars re-entry.
         stopping = true
         _state.value = _state.value.copy(stopping = true)
-        if (recording) {
-            store.save(snapshot(endedAtMs = now(), abnormal = abnormal))
-            watchAddress()?.let { autoSleep.restoreAfterActivity(it) }
-        }
+        store.save(snapshot(endedAtMs = now(), abnormal = abnormal))
+        watchAddress()?.let { autoSleep.restoreAfterActivity(it) }
         session = null
-        recording = false
         stopping = false
         pauseSource = PauseSource.NONE
         _state.value = ActivityState()

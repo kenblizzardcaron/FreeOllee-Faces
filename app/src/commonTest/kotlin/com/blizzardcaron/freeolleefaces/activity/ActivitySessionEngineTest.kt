@@ -211,14 +211,4 @@ class ActivitySessionEngineTest {
         h.engine.ingest(h.slowFix(), 6_100L) // one sample right after resume
         assertFalse(h.engine.state.value.paused, "must not instantly re-pause after an explicit resume")
     }
-
-    @Test fun glance_does_not_auto_pause_when_stationary() = runTest {
-        val h = Harness()
-        h.engine.startLive()
-        h.engine.ingest(h.slowFix(), 0L)
-        h.engine.ingest(h.slowFix(), 1_000L)
-        h.engine.ingest(h.slowFix(), 2_000L)
-        h.engine.ingest(h.slowFix(), 3_000L) // past the 3 s auto-pause hold
-        assertFalse(h.engine.state.value.paused)
-    }
 }
