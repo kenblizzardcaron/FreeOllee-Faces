@@ -118,6 +118,7 @@ private val SAMPLE_STATE = ActivityState(
     distanceMeters = 5_166.0, // ~3.21 mi
     recentPaceSecPerKm = 317.0,
     elapsedMs = 1_923_000L, // 00:32:03
+    movingTimeMs = 1_923_000L, // TIME shows moving time; sample has no paused stretch
     headingDeg = 45f,
     altitudeM = 376.0, // ~1,234 ft
     pressureHpa = 1013.0,

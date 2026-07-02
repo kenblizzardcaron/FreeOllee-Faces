@@ -24,10 +24,17 @@ import com.blizzardcaron.freeolleefaces.ui.Screen
 
 @Composable
 fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
-    viewModel.historyRevision // subscribe: recompose after a delete
     val context = LocalContext.current
     val activityState by viewModel.activity.state.collectAsState()
     val pushIntervalMs by viewModel.activity.pushIntervalMs.collectAsState()
+    // Idle-only history read: skipped while running (the list isn't shown), re-read after a
+    // delete (revision bump) or when the idle branch re-enters composition after a recording.
+    val recent = if (activityState.running) {
+        emptyList()
+    } else {
+        val revision = viewModel.historyRevision
+        remember(revision) { viewModel.activityHistory() }
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.activity.onStart() }
@@ -55,7 +62,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         state = activityState,
         unit = viewModel.activity.activityUnit,
         watchSelected = viewModel.activity.watchSelected,
-        recent = viewModel.activityHistory(),
+        recent = recent,
         config = viewModel.activity.metricsConfig(),
         pushIntervalMs = pushIntervalMs,
         intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
