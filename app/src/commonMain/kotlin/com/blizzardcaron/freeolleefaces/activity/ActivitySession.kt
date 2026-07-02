@@ -80,6 +80,9 @@ class ActivitySession(
         pausedSinceMs?.let { pausedAccumMs += (nowMs - it).coerceAtLeast(0L) }
         pausedSinceMs = null
         paused = false
+        // Drop stale marks so pace doesn't span the paused gap; distance keeps working
+        // because lastAccepted is untouched. Pace reads null until a fresh window refills.
+        window.clear()
     }
 
     fun movingTimeMs(nowMs: Long): Long {
