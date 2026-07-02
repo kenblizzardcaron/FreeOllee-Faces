@@ -19,7 +19,6 @@ class ActivityControllerTest {
         override val state: StateFlow<ActivityState> = stateFlow
         val calls = mutableListOf<String>()
         override fun start() { calls += "start" }
-        override fun startLive() { calls += "startLive" }
         override fun stop() { calls += "stop" }
         override fun cycleMetric() { calls += "cycle" }
         override fun setUnit(unit: ActivityUnit) { calls += "setUnit($unit)" }

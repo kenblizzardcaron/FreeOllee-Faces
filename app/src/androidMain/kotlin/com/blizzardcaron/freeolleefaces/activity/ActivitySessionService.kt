@@ -78,7 +78,6 @@ class ActivitySessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startSession()
-            ACTION_START_LIVE -> startLiveSession()
             ACTION_STOP -> stopSession(abnormal = false)
             ACTION_CYCLE -> engine.cycleMetric()
             ACTION_SET_UNIT -> engine.setUnit(prefs.activityUnit)
@@ -99,15 +98,6 @@ class ActivitySessionService : Service() {
         ActivitySessionHost.isRunning = true
         startForegroundCompat()
         loops = launchLoops { engine.start() }
-    }
-
-    // Non-recording live glance (compass/altitude); same loops, no track saved. Permission is
-    // gated upstream by ActivityController.onShowLive() exactly as for ACTION_START.
-    private fun startLiveSession() {
-        if (ActivitySessionHost.isRunning) return
-        ActivitySessionHost.isRunning = true
-        startForegroundCompat()
-        loops = launchLoops { engine.startLive() }
     }
 
     @SuppressLint("MissingPermission")
@@ -266,7 +256,6 @@ class ActivitySessionService : Service() {
         private const val PRESSURE_PROBE_MS = 3000L // wait this long for a barometer sample
         private const val PRESSURE_NETWORK_REFRESH_MS = 600_000L // network fallback refresh ~10 min
         const val ACTION_START = "com.blizzardcaron.freeolleefaces.activity.START"
-        const val ACTION_START_LIVE = "com.blizzardcaron.freeolleefaces.activity.START_LIVE"
         const val ACTION_STOP = "com.blizzardcaron.freeolleefaces.activity.STOP"
         const val ACTION_CYCLE = "com.blizzardcaron.freeolleefaces.activity.CYCLE"
         const val ACTION_SET_UNIT = "com.blizzardcaron.freeolleefaces.activity.SET_UNIT"
@@ -283,7 +272,6 @@ class ActivitySessionService : Service() {
         }
 
         fun start(context: Context) = send(context, ACTION_START, foreground = true)
-        fun startLive(context: Context) = send(context, ACTION_START_LIVE, foreground = true)
         fun stop(context: Context) = send(context, ACTION_STOP, foreground = false)
         fun cycle(context: Context) = send(context, ACTION_CYCLE, foreground = false)
         fun setUnit(context: Context) = send(context, ACTION_SET_UNIT, foreground = false)

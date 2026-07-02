@@ -24,7 +24,6 @@ class ActivityMetricsControllerTest {
     private class FakeLauncher : ActivitySessionLauncher {
         override val state: StateFlow<ActivityState> = MutableStateFlow(ActivityState())
         override fun start() {}
-        override fun startLive() {}
         override fun stop() {}
         override fun cycleMetric() {}
         override fun setUnit(unit: ActivityUnit) {}
