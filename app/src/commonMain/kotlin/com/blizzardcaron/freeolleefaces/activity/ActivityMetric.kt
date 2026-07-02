@@ -96,7 +96,7 @@ enum class ActivityMetric {
         }
 
         fun renderTime(state: ActivityState): String {
-            val totalSec = state.elapsedMs / MILLIS_PER_SECOND
+            val totalSec = state.movingTimeMs / MILLIS_PER_SECOND
             if (totalSec < SECONDS_PER_HOUR) {
                 val mm = (totalSec / SECONDS_PER_MINUTE).toString().padStart(2, '0')
                 val ss = (totalSec % SECONDS_PER_MINUTE).toString().padStart(2, '0')
@@ -127,7 +127,7 @@ enum class ActivityMetric {
         }
 
         fun humanTime(state: ActivityState): String {
-            val totalSec = state.elapsedMs / MILLIS_PER_SECOND
+            val totalSec = state.movingTimeMs / MILLIS_PER_SECOND
             val h = totalSec / SECONDS_PER_HOUR
             val m = (totalSec % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
             val s = totalSec % SECONDS_PER_MINUTE
