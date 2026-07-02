@@ -173,6 +173,9 @@ class ActivitySessionEngine(
         val s = session ?: return
         pauseSource = PauseSource.NONE
         s.resume(nowMs)
+        // A fresh sample streak + full hold delay must accrue before any new auto-pause;
+        // otherwise a stale streak from before/during the pause fires on the very next sample.
+        autoPause?.reset()
         pusher.forceNext()
         _state.value = _state.value.copy(paused = false, pausedAtMs = null)
     }

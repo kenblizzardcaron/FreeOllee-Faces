@@ -195,6 +195,23 @@ class ActivitySessionEngineTest {
         assertTrue(s.avgPaceSecPerKm > 0.0)
     }
 
+    @Test fun resume_after_manual_pause_requires_a_fresh_slow_streak() = runTest {
+        val h = Harness()
+        h.prefs.autoPauseThresholdMps = 0.5f
+        h.engine.start()
+        h.engine.pause(1_000L)
+        // stale auto-pause hold accrues while manually paused (ignored -> manual precedence)
+        h.engine.ingest(h.slowFix(), 2_000L)
+        h.engine.ingest(h.slowFix(), 3_000L)
+        h.engine.ingest(h.slowFix(), 4_000L)
+        h.engine.ingest(h.slowFix(), 5_000L) // window full + 3s hold satisfied, but still manual
+        assertTrue(h.engine.state.value.paused)
+        h.engine.resume(6_000L)
+        assertFalse(h.engine.state.value.paused)
+        h.engine.ingest(h.slowFix(), 6_100L) // one sample right after resume
+        assertFalse(h.engine.state.value.paused, "must not instantly re-pause after an explicit resume")
+    }
+
     @Test fun glance_does_not_auto_pause_when_stationary() = runTest {
         val h = Harness()
         h.engine.startLive()
