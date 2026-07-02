@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,7 +53,10 @@ fun ActivityScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(16.dp),
+        // The idle stack (buttons + interval picker + recents + instruments) can overflow short
+        // screens; without a scroll the bottom rows clip offscreen (same failure the metrics
+        // config screen hit).
+        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (state.running) {
@@ -96,7 +101,7 @@ private fun InstrumentsRow(instruments: IdleInstruments, unit: ActivityUnit) {
     if (compass == null && pressure == null) return
     Text("Instruments", fontWeight = FontWeight.Bold)
     compass?.let { Text("Compass: $it", style = MaterialTheme.typography.bodyMedium) }
-    pressure?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    pressure?.let { Text("Pressure: $it", style = MaterialTheme.typography.bodyMedium) }
 }
 
 private const val RECENT_LIMIT = 3
