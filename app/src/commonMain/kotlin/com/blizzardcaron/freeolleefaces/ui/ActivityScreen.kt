@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetric
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsConfig
-import com.blizzardcaron.freeolleefaces.activity.ActivityMode
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
@@ -180,7 +179,7 @@ private fun RunningContent(
     }
     // Show each metric exactly as the watch renders it (faithful segment preview), for whichever
     // metrics are enabled (and in the order configured) for recording.
-    for (metric in config.enabledOrder(ActivityMode.RECORDING)) {
+    for (metric in config.enabledOrder()) {
         MetricReadout(metricLabel(metric), metric, state, unit)
     }
     val watchStatusText = if (!watchSelected) {

@@ -187,9 +187,9 @@ object ScreenFakes {
     )
     val metricsConfig = ActivityMetricsConfig.DEFAULT
     val activityMetricsConfigCallbacks = ActivityMetricsConfigCallbacks(
-        onMoveUp = { _, _ -> },
-        onMoveDown = { _, _ -> },
-        onToggle = { _, _, _ -> },
+        onMoveUp = { _ -> },
+        onMoveDown = { _ -> },
+        onToggle = { _, _ -> },
         onBack = {},
     )
 }

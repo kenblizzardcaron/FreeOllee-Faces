@@ -10,12 +10,11 @@ class ActivityMetricsRepository(private val settings: Settings) {
 
     fun get(): ActivityMetricsConfig = ActivityMetricsJson.decode(settings.getStringOrNull(KEY_CONFIG))
 
-    fun moveUp(mode: ActivityMode, index: Int) = save(get().moveUp(mode, index))
+    fun moveUp(index: Int) = save(get().moveUp(index))
 
-    fun moveDown(mode: ActivityMode, index: Int) = save(get().moveDown(mode, index))
+    fun moveDown(index: Int) = save(get().moveDown(index))
 
-    fun setEnabled(mode: ActivityMode, metric: ActivityMetric, enabled: Boolean) =
-        save(get().setEnabled(mode, metric, enabled))
+    fun setEnabled(metric: ActivityMetric, enabled: Boolean) = save(get().setEnabled(metric, enabled))
 
     private fun save(config: ActivityMetricsConfig) {
         settings.putString(KEY_CONFIG, ActivityMetricsJson.encode(config))

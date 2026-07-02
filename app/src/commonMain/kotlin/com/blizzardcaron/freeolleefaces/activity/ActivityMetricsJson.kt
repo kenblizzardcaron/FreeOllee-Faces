@@ -12,10 +12,11 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Pure JSON codec for the activity metric config. Decoding NEVER throws: a null/blank/corrupt
- * store yields [ActivityMetricsConfig.DEFAULT]. Each mode list is defaults-merged against the
- * canonical set ([ActivityMetricsConfig.RECORDING_METRICS] / [GLANCE_METRICS]) so the result
- * always holds exactly the canonical metrics — stored ones keep order+enabled, missing ones are
- * appended enabled, unknown names are dropped.
+ * store yields [ActivityMetricsConfig.DEFAULT]. The recording list is defaults-merged against the
+ * canonical set ([ActivityMetricsConfig.RECORDING_METRICS]) so the result always holds exactly the
+ * canonical metrics — stored ones keep order+enabled, missing ones are appended enabled, unknown
+ * names are dropped. A legacy stored `"glance"` key (from before the glance mode was removed) is
+ * simply never read — that IS the migration.
  */
 object ActivityMetricsJson {
 
@@ -23,7 +24,6 @@ object ActivityMetricsJson {
 
     fun encode(config: ActivityMetricsConfig): String = buildJsonObject {
         put("recording", encodeList(config.recording))
-        put("glance", encodeList(config.glance))
     }.toString()
 
     fun decode(raw: String?): ActivityMetricsConfig {
@@ -32,7 +32,6 @@ object ActivityMetricsJson {
             val obj = json.parseToJsonElement(raw) as? JsonObject ?: throw IllegalArgumentException("Not a JSON object")
             ActivityMetricsConfig(
                 recording = merge(parseList(obj, "recording"), ActivityMetricsConfig.RECORDING_METRICS),
-                glance = merge(parseList(obj, "glance"), ActivityMetricsConfig.GLANCE_METRICS),
             )
         }.getOrDefault(ActivityMetricsConfig.DEFAULT)
     }

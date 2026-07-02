@@ -118,16 +118,16 @@ fun ActivityMetricsConfigTab(viewModel: AppViewModel, modifier: Modifier) {
         config = viewModel.activity.metricsConfig(),
         unit = viewModel.activity.activityUnit,
         callbacks = ActivityMetricsConfigCallbacks(
-            onMoveUp = { mode, i ->
-                viewModel.activity.moveMetricUp(mode, i)
+            onMoveUp = { i ->
+                viewModel.activity.moveMetricUp(i)
                 revision++
             },
-            onMoveDown = { mode, i ->
-                viewModel.activity.moveMetricDown(mode, i)
+            onMoveDown = { i ->
+                viewModel.activity.moveMetricDown(i)
                 revision++
             },
-            onToggle = { mode, m, on ->
-                viewModel.activity.setMetricEnabled(mode, m, on)
+            onToggle = { m, on ->
+                viewModel.activity.setMetricEnabled(m, on)
                 revision++
             },
             onBack = { viewModel.navigateTo(Screen.Activity) },

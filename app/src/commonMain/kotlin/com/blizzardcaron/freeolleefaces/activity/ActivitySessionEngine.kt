@@ -148,7 +148,7 @@ class ActivitySessionEngine(
     }
 
     private fun activeOrder(): List<ActivityMetric> =
-        config.enabledOrder(ActivityMode.RECORDING).ifEmpty { listOf(ActivityMetric.PACE) }
+        config.enabledOrder().ifEmpty { listOf(ActivityMetric.PACE) }
 
     fun setUnit(newUnit: ActivityUnit) {
         unit = newUnit

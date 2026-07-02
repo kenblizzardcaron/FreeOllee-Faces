@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -24,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetric
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricItem
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsConfig
-import com.blizzardcaron.freeolleefaces.activity.ActivityMode
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 
@@ -46,7 +44,7 @@ fun ActivityMetricsConfigScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        // Two metric sections (12 rows) plus a Done button overflow short screens; without a
+        // The metric section (7 rows) plus a Done button can overflow short screens; without a
         // scroll the bottom row was clipped to ~22dp tall (ATF TouchTargetSizeCheck) and Done
         // was unreachable. Scroll so every row keeps its full height and the button is reachable.
         modifier = modifier
@@ -56,9 +54,7 @@ fun ActivityMetricsConfigScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Configure metrics", style = MaterialTheme.typography.headlineSmall)
-        MetricSection("Recording", ActivityMode.RECORDING, config, unit, callbacks)
-        HorizontalDivider()
-        MetricSection("Glance", ActivityMode.GLANCE, config, unit, callbacks)
+        MetricSection("Recording", config, unit, callbacks)
         OutlinedButton(onClick = callbacks.onBack, modifier = Modifier.fillMaxWidth()) { Text("Done") }
     }
 }
@@ -66,22 +62,20 @@ fun ActivityMetricsConfigScreen(
 @Composable
 private fun MetricSection(
     title: String,
-    mode: ActivityMode,
     config: ActivityMetricsConfig,
     unit: ActivityUnit,
     callbacks: ActivityMetricsConfigCallbacks,
 ) {
-    val items = config.forMode(mode)
+    val items = config.recording
     val enabledCount = items.count { it.enabled }
     Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
     items.forEachIndexed { index, item ->
-        MetricRow(mode, index, item, items.lastIndex, enabledCount, unit, callbacks)
+        MetricRow(index, item, items.lastIndex, enabledCount, unit, callbacks)
     }
 }
 
 @Composable
 private fun MetricRow(
-    mode: ActivityMode,
     index: Int,
     item: ActivityMetricItem,
     lastIndex: Int,
@@ -100,16 +94,16 @@ private fun MetricRow(
             Text(metricLabel(item.metric))
             Text(sample, style = MaterialTheme.typography.bodySmall)
         }
-        // Forbid disabling the last enabled metric in the mode (>= 1 invariant).
+        // Forbid disabling the last enabled metric (>= 1 invariant).
         val canDisable = !(item.enabled && enabledCount <= 1)
         Switch(
             checked = item.enabled,
-            onCheckedChange = { on -> if (on || canDisable) callbacks.onToggle(mode, item.metric, on) },
+            onCheckedChange = { on -> if (on || canDisable) callbacks.onToggle(item.metric, on) },
             enabled = item.enabled.not() || canDisable,
             modifier = Modifier.semantics { contentDescription = "Show ${metricLabel(item.metric)}" },
         )
-        TextButton(onClick = { callbacks.onMoveUp(mode, index) }, enabled = index > 0) { Text("▲") }
-        TextButton(onClick = { callbacks.onMoveDown(mode, index) }, enabled = index < lastIndex) { Text("▼") }
+        TextButton(onClick = { callbacks.onMoveUp(index) }, enabled = index > 0) { Text("▲") }
+        TextButton(onClick = { callbacks.onMoveDown(index) }, enabled = index < lastIndex) { Text("▼") }
     }
 }
 

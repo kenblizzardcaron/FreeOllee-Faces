@@ -33,7 +33,6 @@ class ActivitySessionEngineGpsLockTest {
             ActivityMetricItem(ActivityMetric.PRESSURE),
             ActivityMetricItem(ActivityMetric.PACE),
         ),
-        glance = ActivityMetricsConfig.DEFAULT.glance,
     )
 
     @Test fun hasFix_false_until_first_ingest_then_sticky() = runTest {
@@ -76,7 +75,7 @@ class ActivitySessionEngineGpsLockTest {
     }
 
     @Test fun start_selects_first_enabled_recording_metric() = runTest {
-        val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMode.RECORDING, ActivityMetric.PACE, false)
+        val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMetric.PACE, false)
         val e = engine(ble(), config)
         e.start()
         assertEquals(ActivityMetric.AVG_PACE, e.state.value.selectedMetric)
@@ -89,7 +88,6 @@ class ActivitySessionEngineGpsLockTest {
                 ActivityMetricItem(ActivityMetric.PRESSURE, enabled = false),
                 ActivityMetricItem(ActivityMetric.PACE),
             ),
-            glance = ActivityMetricsConfig.DEFAULT.glance,
         )
         val e = engine(ble(), config)
         e.start() // ORIENTATION
