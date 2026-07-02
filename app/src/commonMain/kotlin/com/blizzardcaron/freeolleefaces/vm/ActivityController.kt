@@ -8,6 +8,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -26,7 +27,10 @@ class ActivityController(
     val state: StateFlow<ActivityState> get() = launcher.state
     val activityUnit: ActivityUnit get() = prefs.activityUnit
     val watchSelected: Boolean get() = prefs.watchAddress != null
-    val pushIntervalMs: Long get() = prefs.activityPushIntervalMs
+    private val _pushIntervalMs = MutableStateFlow(prefs.activityPushIntervalMs)
+
+    /** Observable (not a plain prefs read) so the idle interval picker recomposes on selection. */
+    val pushIntervalMs: StateFlow<Long> = _pushIntervalMs
     val pushIntervalPresetsMs: List<Long> get() = Prefs.PUSH_INTERVAL_PRESETS_MS
 
     fun onStart() {
@@ -75,6 +79,9 @@ class ActivityController(
             showSnackbar("Stop the activity to change the push interval.")
             return
         }
-        if (ms in Prefs.PUSH_INTERVAL_PRESETS_MS) prefs.activityPushIntervalMs = ms
+        if (ms in Prefs.PUSH_INTERVAL_PRESETS_MS) {
+            prefs.activityPushIntervalMs = ms
+            _pushIntervalMs.value = ms
+        }
     }
 }

@@ -103,6 +103,20 @@ class ActivityControllerTest {
         assertEquals(30_000L, prefs.activityPushIntervalMs) // unchanged default
     }
 
+    @Test fun setPushInterval_updates_the_observable_flow() {
+        val prefs = Prefs(MapSettings())
+        val c = controller(FakeLauncher(), prefs, permission = true, mutableListOf())
+        c.setPushInterval(15_000L)
+        assertEquals(15_000L, c.pushIntervalMs.value)
+    }
+
+    @Test fun setPushInterval_while_running_leaves_the_flow_unchanged() {
+        val launcher = FakeLauncher().apply { stateFlow.value = ActivityState(running = true) }
+        val c = controller(launcher, Prefs(MapSettings()), permission = true, mutableListOf())
+        c.setPushInterval(3_000L)
+        assertEquals(30_000L, c.pushIntervalMs.value)
+    }
+
     @Test fun setPushInterval_while_running_is_rejected_with_snackbar() {
         val launcher = FakeLauncher().apply { stateFlow.value = ActivityState(running = true) }
         val prefs = Prefs(MapSettings())

@@ -27,6 +27,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
     viewModel.historyRevision // subscribe: recompose after a delete
     val context = LocalContext.current
     val activityState by viewModel.activity.state.collectAsState()
+    val pushIntervalMs by viewModel.activity.pushIntervalMs.collectAsState()
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.activity.onStart() }
@@ -56,7 +57,7 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
         watchSelected = viewModel.activity.watchSelected,
         recent = viewModel.activityHistory(),
         config = viewModel.activity.metricsConfig(),
-        pushIntervalMs = viewModel.activity.pushIntervalMs,
+        pushIntervalMs = pushIntervalMs,
         intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
         callbacks = ActivityCallbacks(
             onStart = startWithPermission,
