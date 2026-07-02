@@ -122,8 +122,8 @@ class ActivitySessionService : Service() {
         pressure.join()
     }
 
-    // Barometric pressure for the PRESSURE glance metric: prefer the phone sensor (live, local); if
-    // there's no barometer, fall back to network surface pressure at the latest GPS fix.
+    // Barometric pressure for the recorded PRESSURE metric: prefer the phone sensor (live, local);
+    // if there's no barometer, fall back to network surface pressure at the latest GPS fix.
     private suspend fun drivePressure() = kotlinx.coroutines.coroutineScope {
         var sawSensor = false
         val sensor = launch {

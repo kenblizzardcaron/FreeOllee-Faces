@@ -58,9 +58,9 @@ landing — then restores your previous auto-sleep setting on stop (and on crash
 the app is killed mid-session). Distance and pace render in miles/min-mi or km/min-km via
 the units toggle. Every session is saved as a Strava-ready track file (SI units, with
 per-point altitude) under the app's `files/activities/`, and your most recent activities
-show as a tappable list on the Activity tab (which opens to this idle home, with the live
-instrument glance one tap away). Works with no watch selected too — it still records the
-track.
+show as a tappable list on the Activity tab (which opens to this idle home, showing live
+phone instruments — compass and barometer — with no recording and no GPS until you start).
+Works with no watch selected too — it still records the track.
 
 **Connection status** — every screen shows the current watch link in its top bar (`Connected`,
 `Connecting…`, or a tappable `⟳ Reconnect`), so you always know whether a push will actually reach

@@ -8,8 +8,9 @@ import kotlin.math.roundToLong
 
 /**
  * The metric currently shown on the watch name-tag. `render` is the only path that produces the
- * 6-char wire string. ORIENTATION/ALTITUDE/PRESSURE are the live-glance instruments (PRESSURE from
- * the phone barometer, network fallback); the track schema (`TrackPoint.altM`) reserves altitude.
+ * 6-char wire string. ORIENTATION and PRESSURE also back the idle Activity home's Instruments row
+ * (compass + phone barometer, network fallback); ALTITUDE is recording-only, sourced from the GPS
+ * track (`TrackPoint.altM`).
  */
 enum class ActivityMetric {
     PACE, DISTANCE, TIME, ORIENTATION, ALTITUDE, PRESSURE, AVG_PACE;
