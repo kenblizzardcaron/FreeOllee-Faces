@@ -26,3 +26,6 @@ local.properties
 
 # Internal planning docs, kept local only (not published to the public repo).
 docs/superpowers/
+
+# Local planning docs (specs/plans), kept local only — not published.
+plans/
