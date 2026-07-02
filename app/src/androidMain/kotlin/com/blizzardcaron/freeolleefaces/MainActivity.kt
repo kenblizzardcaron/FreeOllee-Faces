@@ -2,6 +2,7 @@ package com.blizzardcaron.freeolleefaces
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
@@ -28,8 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivitySessionLauncher
@@ -73,19 +76,25 @@ private const val DASHBOARD_POLL_INTERVAL_MS = 60_000L
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Scoped to the activity's ViewModelStore so screen/nav state survives rotation.
+        val viewModel = ViewModelProvider(this)[AppViewModelHolder::class.java].vm
         setContent {
             FreeOlleeFacesTheme {
-                AppRoot()
+                AppRoot(viewModel)
             }
         }
     }
 }
 
+/** Keeps the plain-Kotlin [AppViewModel] alive across configuration changes (reflective factory needs non-private). */
+internal class AppViewModelHolder(application: Application) : AndroidViewModel(application) {
+    val vm: AppViewModel = createAppViewModel(application)
+}
+
 @Composable
-private fun AppRoot() {
+private fun AppRoot(viewModel: AppViewModel) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val viewModel = rememberAppViewModel(context)
     val state = viewModel.state
     val screen = viewModel.screen
 
@@ -171,12 +180,11 @@ private fun AppEffects(
     }
 }
 
-@Composable
-private fun rememberAppViewModel(context: Context): AppViewModel = remember {
+private fun createAppViewModel(context: Context): AppViewModel {
     val versionName = runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()
-    AppViewModel(
+    return AppViewModel(
         prefs = Prefs(appSettings(context)),
         ble = AndroidBleClient(context),
         watchConnection = AndroidWatchConnection(context),
