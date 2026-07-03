@@ -18,6 +18,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -150,6 +151,25 @@ internal fun StepsCard(
                 "Pushed every ${state.updateIntervalMinutes} min while awake.",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Read live steps from RingConn", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        state.ringConnName?.let { "Ring: $it" }
+                            ?: "Pair your ring in the RingConn app first",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = state.ringConnStepsEnabled,
+                    onCheckedChange = callbacks.onToggleRingConnSteps,
+                    modifier = Modifier.semantics { contentDescription = "Read live steps from RingConn" },
+                )
+            }
         }
     }
 }
@@ -255,7 +275,17 @@ private fun FaceValue(face: FacePreview) {
             "Waiting for coordinates…",
             style = MaterialTheme.typography.bodyMedium
         )
-        is PreviewState.Loading -> Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+        is PreviewState.Loading -> {
+            val previous = preview.previous
+            if (previous != null) {
+                // Keep the last value on the LCD while the refresh runs; hint below instead of wiping.
+                Text(previous.human, style = MaterialTheme.typography.headlineMedium)
+                LcdReadout(value = previous.payload, size = LcdSize.Md)
+                Text("Updating…", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         is PreviewState.Ready -> {
             Text(preview.human, style = MaterialTheme.typography.headlineMedium)
             LcdReadout(value = preview.payload, size = LcdSize.Md)

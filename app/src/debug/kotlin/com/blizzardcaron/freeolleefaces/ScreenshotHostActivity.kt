@@ -85,6 +85,7 @@ class ScreenshotHostActivity : ComponentActivity() {
             onCustomChange = {},
             onSendCustom = {},
             onGrantHealth = {},
+            onToggleRingConnSteps = {},
             onGrantNotificationAccess = {},
             onToggleNotifications = {},
             onNotificationsUpdateNow = {},

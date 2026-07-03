@@ -31,6 +31,11 @@ import com.blizzardcaron.freeolleefaces.location.LocationProvider
 import com.blizzardcaron.freeolleefaces.location.freshnessLabel
 import com.blizzardcaron.freeolleefaces.notifications.NotificationAccessChecker
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.ring.NoopRingDiscovery
+import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingDevice
+import com.blizzardcaron.freeolleefaces.ring.RingDiscovery
+import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
@@ -57,7 +62,7 @@ private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 private const val MINUTES_PER_HOUR = 60
 
-// 12 injected dependencies, each defaulted for tests — standard constructor DI; bundling them
+// 18 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
 // into a holder type would only obscure the wiring and worsen test ergonomics
 @Suppress("LongParameterList")
 class AppViewModel(
@@ -73,6 +78,8 @@ class AppViewModel(
     private val alarmScheduler: AlarmScheduler,
     private val versionLabel: String = "",
     private val watchConnection: WatchConnection = NoopWatchConnection,
+    private val ringSteps: RingStepsSource = NoopRingStepsSource,
+    private val ringDiscovery: RingDiscovery = NoopRingDiscovery,
     private val clock: Clock = Clock.System,
     private val activityLauncher: ActivitySessionLauncher = NoopActivitySessionLauncher,
     private val instrumentsProvider: InstrumentsProvider = NoopInstrumentsProvider,
@@ -119,6 +126,7 @@ class AppViewModel(
         showSnackbar = ::emitEvent,
         state = { state },
         update = { t -> state = t(state) },
+        ringSteps = ringSteps,
         clock = clock,
     )
 
@@ -173,7 +181,7 @@ class AppViewModel(
         customSent = prefs.customSentMs?.let { "Sent '${prefs.customText}' at ${clockTime(it)}" },
         stepsPreview = prefs.lastStepCount?.let {
             PreviewState.Ready(DisplayFormatter.steps(it), stepsHuman(it))
-        } ?: PreviewState.Loading,
+        } ?: PreviewState.Loading(),
         stepsUpdated = prefs.stepsFetchedMs?.let { "Updated ${clockTime(it)}" },
         batteryReadout = prefs.batteryReadout,
         batteryPreview = prefs.batteryValueMv?.let {
@@ -181,8 +189,10 @@ class AppViewModel(
                 DisplayFormatter.battery(it, prefs.batteryReadout),
                 DisplayFormatter.batteryHuman(it, prefs.batteryReadout),
             )
-        } ?: PreviewState.Loading,
+        } ?: PreviewState.Loading(),
         batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
+        ringConnStepsEnabled = prefs.ringConnStepsEnabled,
+        ringConnName = ringNameFor(prefs.ringConnAddress, ringDiscovery.bondedRings()),
         locationLabel = locLabel(prefs.lastLat, prefs.lastLng),
         locationFreshness = freshnessLabel(prefs.lastLocationFetchedMs, nowMs()),
         notificationCount = prefs.notificationCount,
@@ -301,4 +311,22 @@ class AppViewModel(
             )
         }
     }
+
+    /**
+     * Steps-card toggle: opt in/out of reading live steps from a bonded RingConn ring. Turning on
+     * with no ring chosen yet auto-selects it when exactly one bonded ring is found; the saved
+     * address is kept on toggle-off so a later re-enable doesn't need to re-select.
+     */
+    fun toggleRingConnSteps(enabled: Boolean) {
+        prefs.ringConnStepsEnabled = enabled
+        val rings = ringDiscovery.bondedRings()
+        if (enabled && prefs.ringConnAddress == null) {
+            rings.singleOrNull()?.let { prefs.ringConnAddress = it.address }
+        }
+        state = state.copy(ringConnStepsEnabled = enabled, ringConnName = ringNameFor(prefs.ringConnAddress, rings))
+    }
+
+    /** Display name of the selected ring, or null when none is selected or it is no longer bonded. */
+    private fun ringNameFor(address: String?, rings: List<RingDevice>): String? =
+        address?.let { addr -> rings.firstOrNull { it.address == addr }?.name }
 }

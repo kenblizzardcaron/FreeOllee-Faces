@@ -6,6 +6,7 @@ import com.blizzardcaron.freeolleefaces.ble.OlleeProtocol
 import com.blizzardcaron.freeolleefaces.fakes.FakeBleClient
 import com.blizzardcaron.freeolleefaces.fakes.FakeLocationProvider
 import com.blizzardcaron.freeolleefaces.fakes.FakeNotificationAccessChecker
+import com.blizzardcaron.freeolleefaces.fakes.FakeRingStepsSource
 import com.blizzardcaron.freeolleefaces.fakes.FakeScheduler
 import com.blizzardcaron.freeolleefaces.fakes.FakeStepsProvider
 import com.blizzardcaron.freeolleefaces.format.BatteryReadout
@@ -72,6 +73,7 @@ class ComplicationControllerTest {
         notificationAccess: FakeNotificationAccessChecker = FakeNotificationAccessChecker(),
         holder: StateHolder = StateHolder(),
         showSnackbar: (String) -> Unit = {},
+        ring: FakeRingStepsSource = FakeRingStepsSource(),
         clock: Clock = Clock.System,
     ) = ComplicationController(
         prefs = prefs,
@@ -84,6 +86,7 @@ class ComplicationControllerTest {
         showSnackbar = showSnackbar,
         state = holder.state,
         update = holder.update,
+        ringSteps = ring,
         clock = clock,
     )
 
@@ -298,9 +301,11 @@ class ComplicationControllerTest {
         comp.refreshBattery(push = false)
         testScheduler.runCurrent() // read now suspended on the gate
 
+        // The shown value must survive a re-read — now carried as Loading(previous) so the card
+        // keeps rendering it on the LCD with an "Updating…" hint below, instead of blanking.
         assertEquals(
-            seeded, holder.st.batteryPreview,
-            "the shown value must survive a re-read; no flip to Loading",
+            PreviewState.Loading(previous = seeded), holder.st.batteryPreview,
+            "the last value must survive a re-read, wrapped as Loading(previous)",
         )
 
         gate.complete(Unit)
@@ -521,5 +526,81 @@ class ComplicationControllerTest {
         assertEquals(5, holder.st.notificationCount)
         assertEquals(true, holder.st.notificationAccessGranted)
         assertEquals(true, holder.st.notificationsEnabled)
+    }
+
+    // ---------------------------------------------------------------------------
+    // refreshSteps — ring merge (max of ring/Health Connect, silent fallback to HC)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun refreshSteps_ringHigher_displaysRing() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()).apply { ringConnStepsEnabled = true }
+        val holder = StateHolder()
+        val steps = FakeStepsProvider(stepsResult = Result.success(1000L))
+        val ring = FakeRingStepsSource(Result.success(1500L))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring, holder = holder)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(1500L, prefs.lastStepCount)
+        assertTrue(holder.st.stepsPreview is PreviewState.Ready)
+    }
+
+    @Test
+    fun refreshSteps_healthConnectHigher_displaysHealthConnect() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()).apply { ringConnStepsEnabled = true }
+        val steps = FakeStepsProvider(stepsResult = Result.success(2000L))
+        val ring = FakeRingStepsSource(Result.success(500L))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(2000L, prefs.lastStepCount)
+    }
+
+    @Test
+    fun refreshSteps_ringNull_usesHealthConnect() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()).apply { ringConnStepsEnabled = true }
+        val steps = FakeStepsProvider(stepsResult = Result.success(1200L))
+        val ring = FakeRingStepsSource(Result.success(null))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(1200L, prefs.lastStepCount)
+    }
+
+    @Test
+    fun refreshSteps_ringFailure_usesHealthConnect() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()).apply { ringConnStepsEnabled = true }
+        val steps = FakeStepsProvider(stepsResult = Result.success(1200L))
+        val ring = FakeRingStepsSource(Result.failure(RuntimeException("out of range")))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(1200L, prefs.lastStepCount)
+    }
+
+    @Test
+    fun refreshSteps_healthConnectFailure_withRing_usesRingFresh() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()).apply { ringConnStepsEnabled = true }
+        val holder = StateHolder()
+        val steps = FakeStepsProvider(stepsResult = Result.failure(RuntimeException("HC down")))
+        val ring = FakeRingStepsSource(Result.success(800L))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring, holder = holder)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(800L, prefs.lastStepCount)
+        val preview = holder.st.stepsPreview
+        assertTrue(preview is PreviewState.Ready && !preview.human.contains("stale"))
+    }
+
+    @Test
+    fun refreshSteps_toggleOff_ignoresRing() = runTest(testScheduler) {
+        val prefs = Prefs(MapSettings()) // ringConnStepsEnabled defaults false
+        val steps = FakeStepsProvider(stepsResult = Result.success(1000L))
+        val ring = FakeRingStepsSource(Result.success(9999L))
+        val c = controller(prefs, FakeBleClient(), FakeScheduler(), this, steps = steps, ring = ring)
+        c.refreshSteps(push = false)
+        advanceUntilIdle()
+        assertEquals(1000L, prefs.lastStepCount)
+        assertEquals(0, ring.calls)
     }
 }

@@ -28,7 +28,7 @@ data class HomeState(
     val quietHoursEndMin: Int = DEFAULT_QH_END_HOUR * MINUTES_PER_HOUR,
 
     val batteryReadout: BatteryReadout = BatteryReadout.PERCENT,
-    val batteryPreview: PreviewState = PreviewState.Loading,
+    val batteryPreview: PreviewState = PreviewState.Loading(),
     val batteryUpdated: String? = null,
     val batteryNext: String? = null,
 
@@ -40,9 +40,11 @@ data class HomeState(
     val altitudeUpdated: String? = null,
     val altitudeNext: String? = null,
 
-    val stepsPreview: PreviewState = PreviewState.Loading,
+    val stepsPreview: PreviewState = PreviewState.Loading(),
     val stepsUpdated: String? = null,
     val stepsHealthGranted: Boolean = false,
+    val ringConnStepsEnabled: Boolean = false,
+    val ringConnName: String? = null,
 
     val custom: String = "",
     val customSent: String? = null,

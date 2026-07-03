@@ -73,6 +73,22 @@ class Prefs(
         get() = settings.getBoolean(KEY_NOTIFICATIONS_ENABLED, false)
         set(value) = settings.putBoolean(KEY_NOTIFICATIONS_ENABLED, value)
 
+    /** Opt-in: read live steps from the bonded RingConn ring over BLE (off by default). */
+    var ringConnStepsEnabled: Boolean
+        get() = settings.getBoolean(KEY_RINGCONN_STEPS, false)
+        set(value) = settings.putBoolean(KEY_RINGCONN_STEPS, value)
+
+    /** BLE address of the chosen RingConn ring; null until discovery selects one. */
+    var ringConnAddress: String?
+        get() = settings.getStringOrNull(KEY_RINGCONN_ADDRESS)
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_RINGCONN_ADDRESS)
+            } else {
+                settings.putString(KEY_RINGCONN_ADDRESS, value)
+            }
+        }
+
     /** True while an activity session is live; a crash-safety breadcrumb the watchdog reconciles. */
     var activityActive: Boolean
         get() = settings.getBoolean(KEY_ACTIVITY_ACTIVE, false)
@@ -438,6 +454,8 @@ class Prefs(
         private const val KEY_CUSTOM_SENT_MS = "custom_sent_ms"
         private const val KEY_NOTIFICATION_COUNT = "notification_count"
         private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
+        private const val KEY_RINGCONN_STEPS = "ringconn_steps_enabled"
+        private const val KEY_RINGCONN_ADDRESS = "ringconn_address"
         private const val KEY_ACTIVITY_ACTIVE = "activity_active"
         private const val KEY_ACTIVITY_UNIT = "activity_unit"
         private const val KEY_SAVED_AS_PRESENT = "activity_saved_as_present"

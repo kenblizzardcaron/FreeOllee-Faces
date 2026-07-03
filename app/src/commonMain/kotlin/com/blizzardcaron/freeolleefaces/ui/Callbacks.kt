@@ -15,6 +15,7 @@ data class HomeCallbacks(
     val onCustomChange: (String) -> Unit,
     val onSendCustom: () -> Unit,
     val onGrantHealth: () -> Unit,
+    val onToggleRingConnSteps: (Boolean) -> Unit,
     val onGrantNotificationAccess: () -> Unit,
     val onToggleNotifications: (Boolean) -> Unit,
     val onNotificationsUpdateNow: () -> Unit,

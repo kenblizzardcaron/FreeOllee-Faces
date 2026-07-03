@@ -18,6 +18,8 @@ import com.blizzardcaron.freeolleefaces.notify.NotifyDecision
 import com.blizzardcaron.freeolleefaces.notify.StepsFailureClassifier
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.prefs.appSettings
+import com.blizzardcaron.freeolleefaces.ring.AndroidRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import com.blizzardcaron.freeolleefaces.weather.WeatherFetchError
@@ -138,10 +140,14 @@ class AutoUpdateWorker(
         // run enqueues either a backstop or the normal next run, never both.
         var backstopped = false
         if (!inSleep) {
+            // Same ring merge as ComplicationController.refreshSteps: without it, this scheduled
+            // push would flip the watch back to the HC-only count between foreground refreshes.
+            val ring = AndroidRingStepsSource(ctx) { prefs.ringConnAddress }.stepsIfEnabled(prefs)
             AndroidStepsProvider(ctx).todaySteps()
                 .onSuccess { count ->
-                    prefs.recordStepsFetch(count)
-                    val payload = DisplayFormatter.steps(count)
+                    val display = maxOf(count, ring ?: count)
+                    prefs.recordStepsFetch(display)
+                    val payload = DisplayFormatter.steps(display)
                     AndroidBleClient(ctx).send(address, payload)
                         .onSuccess {
                             prefs.recordAutoSend("Sent '$payload'")
@@ -155,12 +161,18 @@ class AutoUpdateWorker(
                 }
                 .onFailure { error ->
                     val kind = StepsFailureClassifier.kindFor(error)
-                    val cached = prefs.lastStepCount
-                    if (cached != null) {
-                        // Read failed but we have a cached count — push it marked stale ('E').
-                        val payload = DisplayFormatter.steps(cached, stale = true)
+                    // A live ring read rescues an HC failure as a fresh (non-stale) push,
+                    // matching the foreground behavior; otherwise fall back to cached-stale.
+                    if (ring != null) prefs.recordStepsFetch(ring)
+                    val fallback = ring ?: prefs.lastStepCount
+                    val stale = ring == null
+                    if (fallback != null) {
+                        // Ring value pushes fresh; a cached count is marked stale ('E').
+                        val payload = DisplayFormatter.steps(fallback, stale = stale)
                         AndroidBleClient(ctx).send(address, payload)
-                            .onSuccess { prefs.recordAutoSend("Sent stale '$payload'") }
+                            .onSuccess {
+                                prefs.recordAutoSend(if (stale) "Sent stale '$payload'" else "Sent '$payload'")
+                            }
                             .onFailure {
                                 backstopped = handleSendFailure(
                                     ctx, prefs, FailureKind.WATCH_UNREACHABLE, inSleep,
