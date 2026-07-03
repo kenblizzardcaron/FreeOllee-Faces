@@ -31,6 +31,8 @@ import com.blizzardcaron.freeolleefaces.location.LocationProvider
 import com.blizzardcaron.freeolleefaces.location.freshnessLabel
 import com.blizzardcaron.freeolleefaces.notifications.NotificationAccessChecker
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
@@ -57,13 +59,14 @@ private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 private const val MINUTES_PER_HOUR = 60
 
-// 12 injected dependencies, each defaulted for tests — standard constructor DI; bundling them
+// 13 injected dependencies, each defaulted for tests — standard constructor DI; bundling them
 // into a holder type would only obscure the wiring and worsen test ergonomics
 @Suppress("LongParameterList")
 class AppViewModel(
     private val prefs: Prefs,
     private val ble: BleClient,
     private val steps: StepsProvider,
+    private val ringSteps: RingStepsSource = NoopRingStepsSource,
     private val location: LocationProvider,
     private val notificationAccess: NotificationAccessChecker,
     private val timerRepo: TimerSetsRepository,
@@ -119,6 +122,7 @@ class AppViewModel(
         showSnackbar = ::emitEvent,
         state = { state },
         update = { t -> state = t(state) },
+        ringSteps = ringSteps,
         clock = clock,
     )
 

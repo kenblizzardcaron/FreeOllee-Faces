@@ -21,6 +21,8 @@ import com.blizzardcaron.freeolleefaces.location.isLocationStale
 import com.blizzardcaron.freeolleefaces.notifications.NotificationAccessChecker
 import com.blizzardcaron.freeolleefaces.notifications.NotificationCount
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
@@ -47,6 +49,9 @@ import kotlinx.datetime.toLocalDateTime
  * read and write the VM's single shared flag (also used by the VM's own `sendAndReport` and
  * [vm.TimerController]'s `pushTimerFrame`), via the injected accessors.
  */
+// 12 injected dependencies, each defaulted or VM-supplied — standard constructor DI, matching the
+// AppViewModel precedent; bundling into a holder type would only obscure the wiring
+@Suppress("LongParameterList")
 class ComplicationController(
     private val prefs: Prefs,
     private val ble: BleClient,
@@ -58,6 +63,7 @@ class ComplicationController(
     private val showSnackbar: (String) -> Unit,
     private val state: () -> HomeState,
     private val update: ((HomeState) -> HomeState) -> Unit,
+    private val ringSteps: RingStepsSource = NoopRingStepsSource,
     private val clock: Clock = Clock.System,
 ) {
     // Per-face jobs: a single shared job let refreshAllPreviews' pressure refresh cancel the
@@ -185,6 +191,45 @@ class ComplicationController(
     }
 
     fun refreshSteps(push: Boolean) {
+        // Ring merge: when the RingConn opt-in is on, display the higher of the ring's live
+        // onboard count and Health Connect; on an HC failure a ring read still counts as fresh.
+        /** The ring's live count, or null when the feature is off or the ring did not contribute. */
+        suspend fun ringStepsOrNull(): Long? =
+            if (!prefs.ringConnStepsEnabled) null else ringSteps.readSteps().getOrNull()
+
+        fun showFreshSteps(count: Long) {
+            prefs.recordStepsFetch(count)
+            val payload = DisplayFormatter.steps(count)
+            update {
+                it.copy(
+                    stepsPreview = PreviewState.Ready(payload, stepsHuman(count)),
+                    stepsUpdated = "Updated ${clockTime(prefs.stepsFetchedMs!!)}",
+                )
+            }
+            if (push) pushIfWatch(payload)
+        }
+
+        // Read failed everywhere: fall back to the last cached step count, marked stale with 'E'.
+        fun showCachedOrError() {
+            val cached = prefs.lastStepCount
+            if (cached != null) {
+                val payload = DisplayFormatter.steps(cached, stale = true)
+                update {
+                    it.copy(
+                        stepsPreview = PreviewState.Ready(payload, stepsHuman(cached) + " (stale)"),
+                        stepsUpdated = prefs.stepsFetchedMs?.let { ms -> "Updated ${clockTime(ms)}" },
+                    )
+                }
+                if (push) pushIfWatch(payload)
+            } else {
+                update {
+                    it.copy(
+                        stepsPreview = PreviewState.Error("Couldn't read steps from Health Connect"),
+                    )
+                }
+            }
+        }
+
         scope.launch {
             if (!steps.hasReadPermission()) {
                 update {
@@ -197,36 +242,10 @@ class ComplicationController(
             }
             update { it.copy(stepsHealthGranted = true, stepsPreview = PreviewState.Loading) }
             steps.todaySteps()
-                .onSuccess { count ->
-                    prefs.recordStepsFetch(count)
-                    val payload = DisplayFormatter.steps(count)
-                    update {
-                        it.copy(
-                            stepsPreview = PreviewState.Ready(payload, stepsHuman(count)),
-                            stepsUpdated = "Updated ${clockTime(prefs.stepsFetchedMs!!)}",
-                        )
-                    }
-                    if (push) pushIfWatch(payload)
-                }
+                .onSuccess { count -> showFreshSteps(maxOf(count, ringStepsOrNull() ?: count)) }
                 .onFailure {
-                    // Read failed: fall back to the last cached step count, marked stale with 'E'.
-                    val cached = prefs.lastStepCount
-                    if (cached != null) {
-                        val payload = DisplayFormatter.steps(cached, stale = true)
-                        update {
-                            it.copy(
-                                stepsPreview = PreviewState.Ready(payload, stepsHuman(cached) + " (stale)"),
-                                stepsUpdated = prefs.stepsFetchedMs?.let { ms -> "Updated ${clockTime(ms)}" },
-                            )
-                        }
-                        if (push) pushIfWatch(payload)
-                    } else {
-                        update {
-                            it.copy(
-                                stepsPreview = PreviewState.Error("Couldn't read steps from Health Connect"),
-                            )
-                        }
-                    }
+                    val ring = ringStepsOrNull()
+                    if (ring != null) showFreshSteps(ring) else showCachedOrError()
                 }
         }
     }
