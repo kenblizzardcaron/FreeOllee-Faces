@@ -59,14 +59,13 @@ private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 private const val MINUTES_PER_HOUR = 60
 
-// 13 injected dependencies, each defaulted for tests — standard constructor DI; bundling them
+// 17 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
 // into a holder type would only obscure the wiring and worsen test ergonomics
 @Suppress("LongParameterList")
 class AppViewModel(
     private val prefs: Prefs,
     private val ble: BleClient,
     private val steps: StepsProvider,
-    private val ringSteps: RingStepsSource = NoopRingStepsSource,
     private val location: LocationProvider,
     private val notificationAccess: NotificationAccessChecker,
     private val timerRepo: TimerSetsRepository,
@@ -76,6 +75,7 @@ class AppViewModel(
     private val alarmScheduler: AlarmScheduler,
     private val versionLabel: String = "",
     private val watchConnection: WatchConnection = NoopWatchConnection,
+    private val ringSteps: RingStepsSource = NoopRingStepsSource,
     private val clock: Clock = Clock.System,
     private val activityLauncher: ActivitySessionLauncher = NoopActivitySessionLauncher,
     private val instrumentsProvider: InstrumentsProvider = NoopInstrumentsProvider,
