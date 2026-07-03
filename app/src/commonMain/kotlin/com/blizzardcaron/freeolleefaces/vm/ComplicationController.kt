@@ -26,6 +26,7 @@ import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
+import com.blizzardcaron.freeolleefaces.ui.refreshing
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import kotlinx.coroutines.CoroutineScope
@@ -156,7 +157,7 @@ class ComplicationController(
         }
         tempJob?.cancel()
         tempJob = scope.launch {
-            update { it.copy(tempPreview = PreviewState.Loading) }
+            update { it.copy(tempPreview = it.tempPreview.refreshing()) }
             OpenMeteoClient.currentTemp(lat, lng, state().tempUnit, RetryPolicy.Preview)
                 .onSuccess { temp ->
                     prefs.recordTempFetch(temp, state().tempUnit)
@@ -238,7 +239,7 @@ class ComplicationController(
                 }
                 return@launch
             }
-            update { it.copy(stepsHealthGranted = true, stepsPreview = PreviewState.Loading) }
+            update { it.copy(stepsHealthGranted = true, stepsPreview = it.stepsPreview.refreshing()) }
             // Ring and Health Connect read concurrently: the ring's short-lived GATT cycle can
             // take seconds, so it must not extend the refresh past max(ring, HC) wall-clock.
             val ringAsync = async { ringSteps.stepsIfEnabled(prefs) }
@@ -277,8 +278,9 @@ class ComplicationController(
         }
         batteryJob?.cancel()
         batteryJob = scope.launch {
-            // Keep showing the last value during a re-read; Loading only before the first-ever read.
-            if (cachedMv == null) update { it.copy(batteryPreview = PreviewState.Loading) }
+            // Keep the last value on the LCD during a re-read (refreshing() shows "Updating…");
+            // a bare Loading only before the first-ever read.
+            update { it.copy(batteryPreview = it.batteryPreview.refreshing()) }
             val mv = BatteryReadback.read(ble, addr)
             if (mv != null) {
                 prefs.recordBatteryFetch(mv)
@@ -332,7 +334,7 @@ class ComplicationController(
         val imperial = prefs.activityUnit == ActivityUnit.IMPERIAL
         pressureJob?.cancel()
         pressureJob = scope.launch {
-            update { it.copy(pressurePreview = PreviewState.Loading) }
+            update { it.copy(pressurePreview = it.pressurePreview.refreshing()) }
             OpenMeteoClient.currentPressureHpa(lat, lng, RetryPolicy.Preview)
                 .onSuccess { hpa ->
                     prefs.recordPressureFetch(hpa)
@@ -375,7 +377,7 @@ class ComplicationController(
         val imperial = prefs.activityUnit == ActivityUnit.IMPERIAL
         altitudeJob?.cancel()
         altitudeJob = scope.launch {
-            update { it.copy(altitudePreview = PreviewState.Loading) }
+            update { it.copy(altitudePreview = it.altitudePreview.refreshing()) }
             OpenMeteoClient.currentElevationM(lat, lng, RetryPolicy.Preview)
                 .onSuccess { meters ->
                     prefs.recordAltitudeFetch(meters)

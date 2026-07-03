@@ -275,7 +275,17 @@ private fun FaceValue(face: FacePreview) {
             "Waiting for coordinates…",
             style = MaterialTheme.typography.bodyMedium
         )
-        is PreviewState.Loading -> Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+        is PreviewState.Loading -> {
+            val previous = preview.previous
+            if (previous != null) {
+                // Keep the last value on the LCD while the refresh runs; hint below instead of wiping.
+                Text(previous.human, style = MaterialTheme.typography.headlineMedium)
+                LcdReadout(value = previous.payload, size = LcdSize.Md)
+                Text("Updating…", style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         is PreviewState.Ready -> {
             Text(preview.human, style = MaterialTheme.typography.headlineMedium)
             LcdReadout(value = preview.payload, size = LcdSize.Md)

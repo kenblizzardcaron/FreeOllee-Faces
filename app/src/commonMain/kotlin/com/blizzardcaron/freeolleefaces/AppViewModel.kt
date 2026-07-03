@@ -181,7 +181,7 @@ class AppViewModel(
         customSent = prefs.customSentMs?.let { "Sent '${prefs.customText}' at ${clockTime(it)}" },
         stepsPreview = prefs.lastStepCount?.let {
             PreviewState.Ready(DisplayFormatter.steps(it), stepsHuman(it))
-        } ?: PreviewState.Loading,
+        } ?: PreviewState.Loading(),
         stepsUpdated = prefs.stepsFetchedMs?.let { "Updated ${clockTime(it)}" },
         batteryReadout = prefs.batteryReadout,
         batteryPreview = prefs.batteryValueMv?.let {
@@ -189,7 +189,7 @@ class AppViewModel(
                 DisplayFormatter.battery(it, prefs.batteryReadout),
                 DisplayFormatter.batteryHuman(it, prefs.batteryReadout),
             )
-        } ?: PreviewState.Loading,
+        } ?: PreviewState.Loading(),
         batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
         ringConnStepsEnabled = prefs.ringConnStepsEnabled,
         ringConnName = ringNameFor(prefs.ringConnAddress, ringDiscovery.bondedRings()),

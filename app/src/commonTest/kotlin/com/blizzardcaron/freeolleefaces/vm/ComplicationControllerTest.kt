@@ -301,9 +301,11 @@ class ComplicationControllerTest {
         comp.refreshBattery(push = false)
         testScheduler.runCurrent() // read now suspended on the gate
 
+        // The shown value must survive a re-read — now carried as Loading(previous) so the card
+        // keeps rendering it on the LCD with an "Updating…" hint below, instead of blanking.
         assertEquals(
-            seeded, holder.st.batteryPreview,
-            "the shown value must survive a re-read; no flip to Loading",
+            PreviewState.Loading(previous = seeded), holder.st.batteryPreview,
+            "the last value must survive a re-read, wrapped as Loading(previous)",
         )
 
         gate.complete(Unit)
