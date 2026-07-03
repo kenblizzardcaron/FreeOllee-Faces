@@ -97,9 +97,12 @@ private fun screenContent(screen: Screen): @Composable () -> Unit = when (screen
                 state = ScreenFakes.activityState,
                 unit = ScreenFakes.unit,
                 watchSelected = true,
-                lastSummary = ScreenFakes.activitySummary,
+                recent = listOf(ScreenFakes.activityTrack),
                 config = ScreenFakes.metricsConfig,
                 callbacks = ScreenFakes.activityCallbacks,
+                pushIntervalMs = 30_000L,
+                intervalPresetsMs = com.blizzardcaron.freeolleefaces.prefs.Prefs.PUSH_INTERVAL_PRESETS_MS,
+                instruments = ScreenFakes.instruments,
             )
         }
     }

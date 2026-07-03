@@ -221,10 +221,16 @@ class FakeSessionAutoSleep(
     var restoreResult: Boolean = true,
 ) : com.blizzardcaron.freeolleefaces.activity.SessionAutoSleep {
     val calls = mutableListOf<String>()
+
+    /** When non-null, [restoreAfterActivity] suspends until this resolves (models the BLE wait). */
+    var restoreGate: CompletableDeferred<Unit>? = null
+
     override suspend fun disableForActivity(address: String): Boolean {
         calls += "disable($address)"; return disableResult
     }
     override suspend fun restoreAfterActivity(address: String): Boolean {
-        calls += "restore($address)"; return restoreResult
+        calls += "restore($address)"
+        restoreGate?.await()
+        return restoreResult
     }
 }

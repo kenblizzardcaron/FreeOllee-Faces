@@ -14,32 +14,36 @@ class ActivityMetricsRepositoryTest {
     @Test fun moveDown_persists() {
         val settings = MapSettings()
         val repo = ActivityMetricsRepository(settings)
-        repo.moveDown(ActivityMode.RECORDING, 0)
+        repo.moveDown(0)
         assertEquals(
-            listOf(ActivityMetric.DISTANCE, ActivityMetric.PACE),
-            ActivityMetricsRepository(settings).get().enabledOrder(ActivityMode.RECORDING).take(2),
+            listOf(ActivityMetric.AVG_PACE, ActivityMetric.PACE),
+            ActivityMetricsRepository(settings).get().enabledOrder().take(2),
         )
     }
 
     @Test fun setEnabled_persists() {
         val settings = MapSettings()
         val repo = ActivityMetricsRepository(settings)
-        repo.setEnabled(ActivityMode.GLANCE, ActivityMetric.PRESSURE, false)
+        repo.setEnabled(ActivityMetric.PRESSURE, false)
         assertEquals(
-            listOf(ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE),
-            ActivityMetricsRepository(settings).get().enabledOrder(ActivityMode.GLANCE),
+            listOf(
+                ActivityMetric.PACE, ActivityMetric.AVG_PACE, ActivityMetric.DISTANCE,
+                ActivityMetric.TIME, ActivityMetric.ORIENTATION, ActivityMetric.ALTITUDE,
+            ),
+            ActivityMetricsRepository(settings).get().enabledOrder(),
         )
     }
 
     @Test fun setEnabled_last_enabled_is_noop() {
         val settings = MapSettings()
         val repo = ActivityMetricsRepository(settings)
-        repo.setEnabled(ActivityMode.GLANCE, ActivityMetric.PRESSURE, false)
-        repo.setEnabled(ActivityMode.GLANCE, ActivityMetric.ALTITUDE, false)
-        repo.setEnabled(ActivityMode.GLANCE, ActivityMetric.ORIENTATION, false)
+        for (metric in ActivityMetricsConfig.RECORDING_METRICS.drop(1)) {
+            repo.setEnabled(metric, false)
+        }
+        repo.setEnabled(ActivityMetricsConfig.RECORDING_METRICS.first(), false)
         assertEquals(
-            listOf(ActivityMetric.ORIENTATION),
-            repo.get().enabledOrder(ActivityMode.GLANCE),
+            listOf(ActivityMetricsConfig.RECORDING_METRICS.first()),
+            repo.get().enabledOrder(),
         )
     }
 }

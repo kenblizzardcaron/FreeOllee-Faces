@@ -42,17 +42,25 @@ every fire — without disturbing the watch's hourly-chime settings, which live 
 BLE record. If a re-arm push can't reach the watch it retries at 2/5/15 minutes, then posts a
 notification with a Retry action — a missed push otherwise means a silently skipped alarm.
 
-**Activity mode** — a GPS-tracked walk/run that streams live **pace**, **distance**, and
-**time** to the watch's name tag while you move. Start and stop from the phone's Activity
-tab; tap **MODE** to cycle which metric the watch shows (the change lands immediately).
-The session runs in a foreground service with an ongoing notification, so tracking survives
-the screen turning off, and it disables the watch's auto-sleep for the duration so pushes
-keep landing — then restores your previous auto-sleep setting on stop (and on crash
-recovery, if the app is killed mid-session). Distance and pace render in miles/min-mi or
-km/min-km via the units toggle. Every session is saved as a Strava-ready track file (SI
-units, with per-point altitude) under the app's `files/activities/`, and the last activity's
-distance/time/average-pace summary shows on the Activity tab. Works with no watch selected
-too — it still records the track.
+**Activity mode** — a GPS-tracked walk/run that streams live **pace**, **average pace**,
+**distance**, and **time** to the watch's name tag while you move. Start and stop from the
+phone's Activity tab; tap **MODE** to cycle which metric the watch shows (the change lands
+immediately). Average pace is computed over **moving time**, so standing still doesn't drag
+it down. A configurable **watch update interval** (3s / 15s / 30s / 1m / 5m, picked on the
+idle home) throttles how often the name tag is rewritten — longer intervals save watch
+battery on long sessions; the interval is fixed for the duration once you start. **Pause**
+and **Resume** on demand, or let **auto-pause** stop the clock when you stand still and
+resume when you move again (it stands down when the GPS fix goes stale, so a dropped fix
+never fakes a pause); while paused the watch shows `PAUSE` and distance/time freeze. The
+session runs in a foreground service with an ongoing notification, so tracking survives the
+screen turning off, and it disables the watch's auto-sleep for the duration so pushes keep
+landing — then restores your previous auto-sleep setting on stop (and on crash recovery, if
+the app is killed mid-session). Distance and pace render in miles/min-mi or km/min-km via
+the units toggle. Every session is saved as a Strava-ready track file (SI units, with
+per-point altitude) under the app's `files/activities/`, and your most recent activities
+show as a tappable list on the Activity tab (which opens to this idle home, showing live
+phone instruments — compass and barometer — with no recording and no GPS until you start).
+Works with no watch selected too — it still records the track.
 
 **Connection status** — every screen shows the current watch link in its top bar (`Connected`,
 `Connecting…`, or a tappable `⟳ Reconnect`), so you always know whether a push will actually reach

@@ -78,34 +78,23 @@ class ActivitySessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startSession()
-            ACTION_START_LIVE -> startLiveSession()
             ACTION_STOP -> stopSession(abnormal = false)
             ACTION_CYCLE -> engine.cycleMetric()
             ACTION_SET_UNIT -> engine.setUnit(prefs.activityUnit)
+            ACTION_PAUSE -> engine.pause(System.currentTimeMillis())
+            ACTION_RESUME -> engine.resume(System.currentTimeMillis())
         }
         return START_STICKY
     }
 
     // The location permission is gated upstream by ActivityController.onStart() — the engine
     // never reaches the service's ACTION_START without ACCESS_FINE_LOCATION already granted.
-    // When a live glance is already running, ACTION_START upgrades it in place to a recording.
+    // A session is always a recording, so ACTION_START while one is already running is a no-op.
     private fun startSession() {
-        if (ActivitySessionHost.isRunning) {
-            scope.launch { engine.beginRecording() }
-            return
-        }
-        ActivitySessionHost.isRunning = true
-        startForegroundCompat()
-        loops = launchLoops { engine.start() }
-    }
-
-    // Non-recording live glance (compass/altitude); same loops, no track saved. Permission is
-    // gated upstream by ActivityController.onShowLive() exactly as for ACTION_START.
-    private fun startLiveSession() {
         if (ActivitySessionHost.isRunning) return
         ActivitySessionHost.isRunning = true
         startForegroundCompat()
-        loops = launchLoops { engine.startLive() }
+        loops = launchLoops { engine.start() }
     }
 
     @SuppressLint("MissingPermission")
@@ -133,8 +122,8 @@ class ActivitySessionService : Service() {
         pressure.join()
     }
 
-    // Barometric pressure for the PRESSURE glance metric: prefer the phone sensor (live, local); if
-    // there's no barometer, fall back to network surface pressure at the latest GPS fix.
+    // Barometric pressure for the recorded PRESSURE metric: prefer the phone sensor (live, local);
+    // if there's no barometer, fall back to network surface pressure at the latest GPS fix.
     private suspend fun drivePressure() = kotlinx.coroutines.coroutineScope {
         var sawSensor = false
         val sensor = launch {
@@ -264,10 +253,11 @@ class ActivitySessionService : Service() {
         private const val PRESSURE_PROBE_MS = 3000L // wait this long for a barometer sample
         private const val PRESSURE_NETWORK_REFRESH_MS = 600_000L // network fallback refresh ~10 min
         const val ACTION_START = "com.blizzardcaron.freeolleefaces.activity.START"
-        const val ACTION_START_LIVE = "com.blizzardcaron.freeolleefaces.activity.START_LIVE"
         const val ACTION_STOP = "com.blizzardcaron.freeolleefaces.activity.STOP"
         const val ACTION_CYCLE = "com.blizzardcaron.freeolleefaces.activity.CYCLE"
         const val ACTION_SET_UNIT = "com.blizzardcaron.freeolleefaces.activity.SET_UNIT"
+        const val ACTION_PAUSE = "com.blizzardcaron.freeolleefaces.activity.PAUSE"
+        const val ACTION_RESUME = "com.blizzardcaron.freeolleefaces.activity.RESUME"
 
         private fun send(context: Context, action: String, foreground: Boolean) {
             val intent = Intent(context, ActivitySessionService::class.java).setAction(action)
@@ -279,9 +269,10 @@ class ActivitySessionService : Service() {
         }
 
         fun start(context: Context) = send(context, ACTION_START, foreground = true)
-        fun startLive(context: Context) = send(context, ACTION_START_LIVE, foreground = true)
         fun stop(context: Context) = send(context, ACTION_STOP, foreground = false)
         fun cycle(context: Context) = send(context, ACTION_CYCLE, foreground = false)
         fun setUnit(context: Context) = send(context, ACTION_SET_UNIT, foreground = false)
+        fun pause(context: Context) = send(context, ACTION_PAUSE, foreground = false)
+        fun resume(context: Context) = send(context, ACTION_RESUME, foreground = false)
     }
 }

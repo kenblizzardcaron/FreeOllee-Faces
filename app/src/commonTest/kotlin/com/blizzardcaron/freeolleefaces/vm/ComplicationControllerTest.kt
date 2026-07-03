@@ -253,6 +253,96 @@ class ComplicationControllerTest {
     }
 
     @Test
+    fun refreshBattery_freshCache_rendersFromCacheWithoutBle() = runTest(testScheduler) {
+        val callLog = mutableListOf<String>()
+        val ble = FakeBleClient(callLog)
+        val prefs = Prefs(MapSettings())
+        prefs.watchAddress = watchAddress
+        prefs.recordBatteryFetch(2850) // fetchedMs = now -> fresh within the default 15-min interval
+        val holder = StateHolder(HomeState(batteryReadout = BatteryReadout.PERCENT))
+        val comp = controller(prefs, ble, FakeScheduler(), this, holder = holder)
+
+        comp.refreshBattery(push = false)
+        advanceUntilIdle()
+
+        val preview = holder.st.batteryPreview
+        assertTrue(preview is PreviewState.Ready, "expected Ready from cache, got $preview")
+        assertEquals("   75P", (preview as PreviewState.Ready).payload)
+        assertTrue(callLog.none { it.startsWith("ble.") }, "fresh cache must not re-read BLE: $callLog")
+    }
+
+    @Test
+    fun refreshBattery_expiredCache_keepsLastValueDuringRead_thenUpdates() = runTest(testScheduler) {
+        val ble = FakeBleClient(mutableListOf())
+        val prefs = Prefs(MapSettings())
+        prefs.watchAddress = watchAddress
+        prefs.batteryValueMv = 2700 // 50P
+        prefs.batteryFetchedMs = Clock.System.now().toEpochMilliseconds() - 16 * 60_000L // expired
+
+        val payload = ByteArray(BatteryReadback.VOLTAGE_OFFSET + 2)
+        payload[BatteryReadback.VOLTAGE_OFFSET] = 0x0B
+        payload[BatteryReadback.VOLTAGE_OFFSET + 1] = 0x22 // 2850 mV -> 75P
+        ble.awaitResult = Result.success(
+            OlleeProtocol.Frame(cmd = 0x02, target = 0x4a, payload = payload, crcOk = true),
+        )
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        ble.gate = gate
+
+        // The card is already rendering the cached value (seeded at startup / previous refresh).
+        val seeded = PreviewState.Ready("   50P", "Battery: 50%")
+        val holder = StateHolder(
+            HomeState(batteryReadout = BatteryReadout.PERCENT, batteryPreview = seeded),
+        )
+        val comp = controller(prefs, ble, FakeScheduler(), this, holder = holder)
+
+        comp.refreshBattery(push = false)
+        testScheduler.runCurrent() // read now suspended on the gate
+
+        assertEquals(
+            seeded, holder.st.batteryPreview,
+            "the shown value must survive a re-read; no flip to Loading",
+        )
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        val preview = holder.st.batteryPreview
+        assertTrue(preview is PreviewState.Ready, "expected Ready, got $preview")
+        assertEquals("   75P", (preview as PreviewState.Ready).payload)
+        assertEquals(2850, prefs.batteryValueMv)
+    }
+
+    @Test
+    fun refreshActive_forceBattery_reReadsDespiteFreshCache() = runTest(testScheduler) {
+        val callLog = mutableListOf<String>()
+        val ble = FakeBleClient(callLog)
+        val prefs = Prefs(MapSettings())
+        prefs.watchAddress = watchAddress
+        prefs.recordBatteryFetch(2700) // fresh cache
+
+        val payload = ByteArray(BatteryReadback.VOLTAGE_OFFSET + 2)
+        payload[BatteryReadback.VOLTAGE_OFFSET] = 0x0B
+        payload[BatteryReadback.VOLTAGE_OFFSET + 1] = 0x22 // 2850 mV
+        ble.awaitResult = Result.success(
+            OlleeProtocol.Frame(cmd = 0x02, target = 0x4a, payload = payload, crcOk = true),
+        )
+
+        val holder = StateHolder(
+            HomeState(
+                batteryReadout = BatteryReadout.PERCENT,
+                activeComplication = ActiveComplication.BATTERY,
+            ),
+        )
+        val comp = controller(prefs, ble, FakeScheduler(), this, holder = holder)
+
+        comp.refreshActive(force = true, push = false)
+        advanceUntilIdle()
+
+        assertTrue(callLog.any { it.startsWith("ble.") }, "force must re-read BLE: $callLog")
+        assertEquals(2850, prefs.batteryValueMv)
+    }
+
+    @Test
     fun refreshBattery_noWatch_setsError() = runTest(testScheduler) {
         val ble = FakeBleClient(mutableListOf())
         val scheduler = FakeScheduler(mutableListOf())

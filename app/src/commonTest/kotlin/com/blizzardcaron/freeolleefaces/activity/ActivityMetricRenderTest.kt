@@ -6,8 +6,15 @@ import kotlin.test.assertTrue
 
 class ActivityMetricRenderTest {
 
+    // A never-paused session has movingTimeMs == elapsedMs, so this default keeps every existing
+    // caller's semantics intact; pause-freeze behavior is exercised explicitly, below.
     private fun state(distM: Double = 0.0, pace: Double? = null, elapsedMs: Long = 0L) =
-        ActivityState(distanceMeters = distM, recentPaceSecPerKm = pace, elapsedMs = elapsedMs)
+        ActivityState(
+            distanceMeters = distM,
+            recentPaceSecPerKm = pace,
+            elapsedMs = elapsedMs,
+            movingTimeMs = elapsedMs,
+        )
 
     @Test fun every_render_is_at_most_six_ascii_chars() {
         val states = listOf(
@@ -52,12 +59,19 @@ class ActivityMetricRenderTest {
         assertEquals("1h05", ActivityMetric.TIME.render(state(elapsedMs = (65 * 60) * 1000L), ActivityUnit.IMPERIAL))
     }
 
+    @Test fun time_freezes_at_moving_time_during_pause() {
+        // 10:00 elapsed wall-clock, but only 5:00 of it was actually moving (paused for 5:00).
+        val paused = ActivityState(elapsedMs = 600_000L, movingTimeMs = 300_000L)
+        assertEquals("t05 00", ActivityMetric.TIME.render(paused, ActivityUnit.IMPERIAL))
+    }
+
     @Test fun next_cycles_through_all_metrics() {
         assertEquals(ActivityMetric.DISTANCE, ActivityMetric.PACE.next())
         assertEquals(ActivityMetric.TIME, ActivityMetric.DISTANCE.next())
         assertEquals(ActivityMetric.ORIENTATION, ActivityMetric.TIME.next())
         assertEquals(ActivityMetric.ALTITUDE, ActivityMetric.ORIENTATION.next())
         assertEquals(ActivityMetric.PRESSURE, ActivityMetric.ALTITUDE.next())
-        assertEquals(ActivityMetric.PACE, ActivityMetric.PRESSURE.next())
+        assertEquals(ActivityMetric.AVG_PACE, ActivityMetric.PRESSURE.next())
+        assertEquals(ActivityMetric.PACE, ActivityMetric.AVG_PACE.next())
     }
 }

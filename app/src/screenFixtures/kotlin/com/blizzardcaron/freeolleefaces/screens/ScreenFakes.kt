@@ -5,6 +5,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivitySummary
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
+import com.blizzardcaron.freeolleefaces.activity.IdleInstruments
 import com.blizzardcaron.freeolleefaces.activity.TrackPoint
 import com.blizzardcaron.freeolleefaces.alarm.Alarm
 import com.blizzardcaron.freeolleefaces.ble.ConnectionStatus
@@ -141,7 +142,6 @@ object ScreenFakes {
 
     val activityState = ActivityState(
         running = true,
-        recording = true,
         distanceMeters = 1234.0,
         recentPaceSecPerKm = 300.0,
         elapsedMs = 600_000L,
@@ -156,14 +156,18 @@ object ScreenFakes {
         elapsedTimeMs = 1_600_000L,
         avgPaceSecPerKm = 300.0,
     )
+    val instruments = IdleInstruments(headingDeg = 45f, pressureHpa = 1013.0)
     val activityCallbacks = ActivityCallbacks(
         onStart = {},
-        onShowLive = {},
         onStop = {},
         onMode = {},
         onToggleUnit = {},
         onOpenHistory = {},
         onConfigureMetrics = {},
+        onSelectInterval = {},
+        onPause = {},
+        onResume = {},
+        onOpenActivity = {},
     )
     val activityTrack = ActivityTrack(
         id = "t1",
@@ -183,9 +187,9 @@ object ScreenFakes {
     )
     val metricsConfig = ActivityMetricsConfig.DEFAULT
     val activityMetricsConfigCallbacks = ActivityMetricsConfigCallbacks(
-        onMoveUp = { _, _ -> },
-        onMoveDown = { _, _ -> },
-        onToggle = { _, _, _ -> },
+        onMoveUp = { _ -> },
+        onMoveDown = { _ -> },
+        onToggle = { _, _ -> },
         onBack = {},
     )
 }

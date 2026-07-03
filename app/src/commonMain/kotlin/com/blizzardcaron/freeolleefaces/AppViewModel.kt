@@ -10,8 +10,11 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityRetention
 import com.blizzardcaron.freeolleefaces.activity.ActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityTrackStore
+import com.blizzardcaron.freeolleefaces.activity.IdleInstruments
+import com.blizzardcaron.freeolleefaces.activity.InstrumentsProvider
 import com.blizzardcaron.freeolleefaces.activity.NoopActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.NoopActivityTrackStore
+import com.blizzardcaron.freeolleefaces.activity.NoopInstrumentsProvider
 import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
 import com.blizzardcaron.freeolleefaces.auto.ActiveComplication
 import com.blizzardcaron.freeolleefaces.auto.AlarmScheduler
@@ -42,6 +45,7 @@ import com.blizzardcaron.freeolleefaces.vm.locLabel
 import com.blizzardcaron.freeolleefaces.vm.stepsHuman
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -71,6 +75,7 @@ class AppViewModel(
     private val watchConnection: WatchConnection = NoopWatchConnection,
     private val clock: Clock = Clock.System,
     private val activityLauncher: ActivitySessionLauncher = NoopActivitySessionLauncher,
+    private val instrumentsProvider: InstrumentsProvider = NoopInstrumentsProvider,
     private val activityStore: ActivityTrackStore = NoopActivityTrackStore,
     private val hasLocationPermission: () -> Boolean = { true },
 ) : ViewModel() {
@@ -170,6 +175,14 @@ class AppViewModel(
             PreviewState.Ready(DisplayFormatter.steps(it), stepsHuman(it))
         } ?: PreviewState.Loading,
         stepsUpdated = prefs.stepsFetchedMs?.let { "Updated ${clockTime(it)}" },
+        batteryReadout = prefs.batteryReadout,
+        batteryPreview = prefs.batteryValueMv?.let {
+            PreviewState.Ready(
+                DisplayFormatter.battery(it, prefs.batteryReadout),
+                DisplayFormatter.batteryHuman(it, prefs.batteryReadout),
+            )
+        } ?: PreviewState.Loading,
+        batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
         locationLabel = locLabel(prefs.lastLat, prefs.lastLng),
         locationFreshness = freshnessLabel(prefs.lastLocationFetchedMs, nowMs()),
         notificationCount = prefs.notificationCount,
@@ -182,6 +195,11 @@ class AppViewModel(
 
     /** All recorded activity tracks, newest first (for the history list). */
     fun activityHistory(): List<ActivityTrack> = activityStore.list()
+
+    /** Sensors-only idle instruments (compass + barometer) for the Activity home. */
+    val instruments: StateFlow<IdleInstruments> get() = instrumentsProvider.instruments
+    fun startInstruments() = instrumentsProvider.start()
+    fun stopInstruments() = instrumentsProvider.stop()
 
     /** Open a recorded activity's detail screen by [id]. */
     fun openActivity(id: String) {

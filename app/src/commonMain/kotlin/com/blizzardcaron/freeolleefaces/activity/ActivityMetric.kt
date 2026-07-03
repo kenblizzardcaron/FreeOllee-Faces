@@ -8,11 +8,12 @@ import kotlin.math.roundToLong
 
 /**
  * The metric currently shown on the watch name-tag. `render` is the only path that produces the
- * 6-char wire string. ORIENTATION/ALTITUDE/PRESSURE are the live-glance instruments (PRESSURE from
- * the phone barometer, network fallback); the track schema (`TrackPoint.altM`) reserves altitude.
+ * 6-char wire string. ORIENTATION and PRESSURE also back the idle Activity home's Instruments row
+ * (compass + phone barometer, network fallback); ALTITUDE is recording-only, sourced from the GPS
+ * track (`TrackPoint.altM`).
  */
 enum class ActivityMetric {
-    PACE, DISTANCE, TIME, ORIENTATION, ALTITUDE, PRESSURE;
+    PACE, DISTANCE, TIME, ORIENTATION, ALTITUDE, PRESSURE, AVG_PACE;
 
     fun next(): ActivityMetric = entries[(ordinal + 1) % entries.size]
 
@@ -23,6 +24,7 @@ enum class ActivityMetric {
         ORIENTATION -> renderOrientation(state.headingDeg)
         ALTITUDE -> renderAltitude(state.altitudeM, unit)
         PRESSURE -> renderPressure(state.pressureHpa, unit)
+        AVG_PACE -> renderAvgPace(state, unit)
     }
 
     /** In-app, fully-unit'd interpretation of this metric. null when the underlying value is absent. */
@@ -33,6 +35,7 @@ enum class ActivityMetric {
         ORIENTATION -> humanOrientation(state.headingDeg)
         ALTITUDE -> humanAltitude(state.altitudeM, unit)
         PRESSURE -> humanPressure(state.pressureHpa, unit)
+        AVG_PACE -> humanAvgPace(state, unit)
     }
 
     @Suppress("TooManyFunctions")
@@ -94,7 +97,7 @@ enum class ActivityMetric {
         }
 
         fun renderTime(state: ActivityState): String {
-            val totalSec = state.elapsedMs / MILLIS_PER_SECOND
+            val totalSec = state.movingTimeMs / MILLIS_PER_SECOND
             if (totalSec < SECONDS_PER_HOUR) {
                 val mm = (totalSec / SECONDS_PER_MINUTE).toString().padStart(2, '0')
                 val ss = (totalSec % SECONDS_PER_MINUTE).toString().padStart(2, '0')
@@ -125,7 +128,7 @@ enum class ActivityMetric {
         }
 
         fun humanTime(state: ActivityState): String {
-            val totalSec = state.elapsedMs / MILLIS_PER_SECOND
+            val totalSec = state.movingTimeMs / MILLIS_PER_SECOND
             val h = totalSec / SECONDS_PER_HOUR
             val m = (totalSec % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
             val s = totalSec % SECONDS_PER_MINUTE
@@ -154,6 +157,32 @@ enum class ActivityMetric {
             } else {
                 "${hpa.roundToInt()} hPa"
             }
+        }
+
+        const val METERS_PER_KM = 1000.0
+        const val MILLIS_PER_SEC_D = 1000.0
+        const val AVG_PACE_TAG = "A"
+
+        private fun avgPaceSecPerKm(state: ActivityState): Double? {
+            val km = state.distanceMeters / METERS_PER_KM
+            if (km <= 0.0 || state.movingTimeMs <= 0L) return null
+            return (state.movingTimeMs / MILLIS_PER_SEC_D) / km
+        }
+
+        fun renderAvgPace(state: ActivityState, unit: ActivityUnit): String {
+            val secPerKm = avgPaceSecPerKm(state) ?: return "$AVG_PACE_TAG --"
+            val secs = unit.paceSecondsPerUnit(secPerKm).roundToInt().coerceIn(0, MAX_PACE_SECONDS)
+            val mm = secs / SECONDS_PER_MINUTE
+            val ss = (secs % SECONDS_PER_MINUTE).toString().padStart(2, '0')
+            return "$AVG_PACE_TAG$mm $ss"
+        }
+
+        fun humanAvgPace(state: ActivityState, unit: ActivityUnit): String? {
+            val secPerKm = avgPaceSecPerKm(state) ?: return null
+            val secs = unit.paceSecondsPerUnit(secPerKm).roundToInt().coerceAtLeast(0)
+            val mm = secs / SECONDS_PER_MINUTE
+            val ss = (secs % SECONDS_PER_MINUTE).toString().padStart(2, '0')
+            return "$mm:$ss /${unit.distanceSuffix} avg"
         }
     }
 }

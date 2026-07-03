@@ -360,4 +360,40 @@ class PrefsTest {
         assertEquals(2850, prefs.batteryValueMv)
         assertEquals(FixedClock.FIXED_MS, prefs.batteryFetchedMs)
     }
+
+    // ---------------------------------------------------------------------------
+    // activity push interval and auto-pause threshold
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun testPushIntervalDefaultsTo30s() {
+        assertEquals(30_000L, freshPrefs().activityPushIntervalMs)
+    }
+
+    @Test
+    fun testPushIntervalRoundTrips() {
+        val prefs = freshPrefs()
+        prefs.activityPushIntervalMs = 60_000L
+        assertEquals(60_000L, prefs.activityPushIntervalMs)
+    }
+
+    @Test
+    fun testAutoPauseThresholdDefaults() {
+        assertEquals(0.1f, freshPrefs().autoPauseThresholdMps)
+    }
+
+    @Test
+    fun testAutoPauseThresholdRoundTrips() {
+        val prefs = freshPrefs()
+        prefs.autoPauseThresholdMps = 0.25f
+        assertEquals(0.25f, prefs.autoPauseThresholdMps)
+    }
+
+    @Test
+    fun testPresetsAreTheFiveLockedValues() {
+        assertEquals(
+            listOf(3_000L, 15_000L, 30_000L, 60_000L, 300_000L),
+            Prefs.PUSH_INTERVAL_PRESETS_MS,
+        )
+    }
 }

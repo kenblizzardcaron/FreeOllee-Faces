@@ -3,7 +3,6 @@ package com.blizzardcaron.freeolleefaces.vm
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetric
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsConfig
 import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
-import com.blizzardcaron.freeolleefaces.activity.ActivityMode
 import com.blizzardcaron.freeolleefaces.activity.ActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.ActivityState
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
@@ -24,10 +23,11 @@ class ActivityMetricsControllerTest {
     private class FakeLauncher : ActivitySessionLauncher {
         override val state: StateFlow<ActivityState> = MutableStateFlow(ActivityState())
         override fun start() {}
-        override fun startLive() {}
         override fun stop() {}
         override fun cycleMetric() {}
         override fun setUnit(unit: ActivityUnit) {}
+        override fun pause() {}
+        override fun resume() {}
     }
 
     private fun controller(repo: ActivityMetricsRepository) = ActivityController(
@@ -48,15 +48,15 @@ class ActivityMetricsControllerTest {
     @Test fun moveMetricUp_delegates_to_repo_and_is_visible_via_metricsConfig() {
         val repo = ActivityMetricsRepository(MapSettings())
         val c = controller(repo)
-        // RECORDING_METRICS[1] is DISTANCE; moving index 1 up swaps it with PACE at index 0.
+        // RECORDING_METRICS[1] is AVG_PACE; moving index 1 up swaps it with PACE at index 0.
         val before = c.metricsConfig().recording.map { it.metric }
         assertEquals(ActivityMetric.PACE, before[0])
-        assertEquals(ActivityMetric.DISTANCE, before[1])
+        assertEquals(ActivityMetric.AVG_PACE, before[1])
 
-        c.moveMetricUp(ActivityMode.RECORDING, 1)
+        c.moveMetricUp(1)
 
         val after = c.metricsConfig().recording.map { it.metric }
-        assertEquals(ActivityMetric.DISTANCE, after[0])
+        assertEquals(ActivityMetric.AVG_PACE, after[0])
         assertEquals(ActivityMetric.PACE, after[1])
         assertEquals(repo.get(), c.metricsConfig(), "controller reads through the same repo it wrote")
     }
@@ -66,12 +66,12 @@ class ActivityMetricsControllerTest {
         val c = controller(repo)
         val before = c.metricsConfig().recording.map { it.metric }
         assertEquals(ActivityMetric.PACE, before[0])
-        assertEquals(ActivityMetric.DISTANCE, before[1])
+        assertEquals(ActivityMetric.AVG_PACE, before[1])
 
-        c.moveMetricDown(ActivityMode.RECORDING, 0)
+        c.moveMetricDown(0)
 
         val after = c.metricsConfig().recording.map { it.metric }
-        assertEquals(ActivityMetric.DISTANCE, after[0])
+        assertEquals(ActivityMetric.AVG_PACE, after[0])
         assertEquals(ActivityMetric.PACE, after[1])
         assertEquals(repo.get(), c.metricsConfig())
     }
@@ -80,25 +80,26 @@ class ActivityMetricsControllerTest {
         val repo = ActivityMetricsRepository(MapSettings())
         val c = controller(repo)
 
-        c.setMetricEnabled(ActivityMode.RECORDING, ActivityMetric.PRESSURE, false)
+        c.setMetricEnabled(ActivityMetric.PRESSURE, false)
 
         val item = c.metricsConfig().recording.first { it.metric == ActivityMetric.PRESSURE }
         assertEquals(false, item.enabled)
         assertEquals(repo.get(), c.metricsConfig())
     }
 
-    @Test fun setMetricEnabled_refuses_to_disable_the_last_enabled_metric_in_glance() {
+    @Test fun setMetricEnabled_refuses_to_disable_the_last_enabled_metric() {
         val repo = ActivityMetricsRepository(MapSettings())
         val c = controller(repo)
-        // Drive glance down to a single enabled metric, then verify the invariant survives the
+        // Drive recording down to a single enabled metric, then verify the invariant survives the
         // controller call (the repo/config already enforce it — this checks the delegation, not
         // the invariant logic itself, which is covered in ActivityMetricsConfigTest).
-        c.setMetricEnabled(ActivityMode.GLANCE, ActivityMetric.ALTITUDE, false)
-        c.setMetricEnabled(ActivityMode.GLANCE, ActivityMetric.PRESSURE, false)
-        val onlyEnabled = c.metricsConfig().glance.single { it.enabled }.metric
+        for (metric in ActivityMetricsConfig.RECORDING_METRICS.drop(1)) {
+            c.setMetricEnabled(metric, false)
+        }
+        val onlyEnabled = c.metricsConfig().recording.single { it.enabled }.metric
 
-        c.setMetricEnabled(ActivityMode.GLANCE, onlyEnabled, false)
+        c.setMetricEnabled(onlyEnabled, false)
 
-        assertEquals(1, c.metricsConfig().glance.count { it.enabled })
+        assertEquals(1, c.metricsConfig().recording.count { it.enabled })
     }
 }

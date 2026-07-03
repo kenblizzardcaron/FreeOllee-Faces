@@ -4,6 +4,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 import com.blizzardcaron.freeolleefaces.auto.ActiveComplication
 import com.blizzardcaron.freeolleefaces.auto.AutoUpdateSchedule
 import com.blizzardcaron.freeolleefaces.auto.Scheduler
+import com.blizzardcaron.freeolleefaces.auto.isBatteryCacheFresh
 import com.blizzardcaron.freeolleefaces.auto.isTempCacheFresh
 import com.blizzardcaron.freeolleefaces.ble.BatteryReadback
 import com.blizzardcaron.freeolleefaces.ble.BleClient
@@ -59,7 +60,13 @@ class ComplicationController(
     private val update: ((HomeState) -> HomeState) -> Unit,
     private val clock: Clock = Clock.System,
 ) {
-    private var refreshJob: Job? = null
+    // Per-face jobs: a single shared job let refreshAllPreviews' pressure refresh cancel the
+    // in-flight battery BLE read (card stuck on "Loading…"); a face may only cancel its own
+    // predecessor.
+    private var tempJob: Job? = null
+    private var batteryJob: Job? = null
+    private var pressureJob: Job? = null
+    private var altitudeJob: Job? = null
 
     companion object {
         /** Custom-text face is a 6-character watch display; longer input is truncated. */
@@ -139,8 +146,8 @@ class ComplicationController(
             if (push) pushIfWatch(payload)
             return
         }
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
+        tempJob?.cancel()
+        tempJob = scope.launch {
             update { it.copy(tempPreview = PreviewState.Loading) }
             OpenMeteoClient.currentTemp(lat, lng, state().tempUnit, RetryPolicy.Preview)
                 .onSuccess { temp ->
@@ -224,15 +231,34 @@ class ComplicationController(
         }
     }
 
-    fun refreshBattery(push: Boolean) {
+    fun refreshBattery(push: Boolean, force: Boolean = false) {
         val addr = prefs.watchAddress
         if (addr == null) {
             update { it.copy(batteryPreview = PreviewState.Error("Pair a watch to read battery")) }
             return
         }
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
-            update { it.copy(batteryPreview = PreviewState.Loading) }
+        // Mirror refreshTemp: within the settings update interval, render the cached voltage
+        // instead of re-reading BLE (the dashboard poll calls this every 60 s).
+        val cachedMv = prefs.batteryValueMv
+        if (!force && cachedMv != null && isBatteryCacheFresh(prefs.batteryFetchedMs, interval(), nowMs())) {
+            val payload = DisplayFormatter.battery(cachedMv, state().batteryReadout)
+            update {
+                it.copy(
+                    batteryPreview = PreviewState.Ready(
+                        payload,
+                        DisplayFormatter.batteryHuman(cachedMv, state().batteryReadout),
+                    ),
+                    batteryUpdated = "Updated ${clockTime(prefs.batteryFetchedMs!!)}",
+                    batteryNext = tempNextText(),
+                )
+            }
+            if (push) pushIfWatch(payload)
+            return
+        }
+        batteryJob?.cancel()
+        batteryJob = scope.launch {
+            // Keep showing the last value during a re-read; Loading only before the first-ever read.
+            if (cachedMv == null) update { it.copy(batteryPreview = PreviewState.Loading) }
             val mv = BatteryReadback.read(ble, addr)
             if (mv != null) {
                 prefs.recordBatteryFetch(mv)
@@ -284,8 +310,8 @@ class ComplicationController(
         }
         val (lat, lng) = c
         val imperial = prefs.activityUnit == ActivityUnit.IMPERIAL
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
+        pressureJob?.cancel()
+        pressureJob = scope.launch {
             update { it.copy(pressurePreview = PreviewState.Loading) }
             OpenMeteoClient.currentPressureHpa(lat, lng, RetryPolicy.Preview)
                 .onSuccess { hpa ->
@@ -327,8 +353,8 @@ class ComplicationController(
         }
         val (lat, lng) = c
         val imperial = prefs.activityUnit == ActivityUnit.IMPERIAL
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
+        altitudeJob?.cancel()
+        altitudeJob = scope.launch {
             update { it.copy(altitudePreview = PreviewState.Loading) }
             OpenMeteoClient.currentElevationM(lat, lng, RetryPolicy.Preview)
                 .onSuccess { meters ->
@@ -366,7 +392,7 @@ class ComplicationController(
         when (state().activeComplication) {
             ActiveComplication.TEMPERATURE -> refreshTemp(force, push)
             ActiveComplication.STEPS -> refreshSteps(push)
-            ActiveComplication.BATTERY -> refreshBattery(push)
+            ActiveComplication.BATTERY -> refreshBattery(push, force)
             ActiveComplication.PRESSURE -> refreshPressure(push)
             ActiveComplication.ALTITUDE -> refreshAltitude(push)
             ActiveComplication.CUSTOM -> {}

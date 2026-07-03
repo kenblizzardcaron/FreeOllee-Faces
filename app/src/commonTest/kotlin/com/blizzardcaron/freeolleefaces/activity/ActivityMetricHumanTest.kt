@@ -29,8 +29,16 @@ class ActivityMetricHumanTest {
     }
 
     @Test fun time_hms() {
-        val st = ActivityState(elapsedMs = ((1 * 3600) + (2 * 60) + 3) * 1000L)
+        // Never paused, so movingTimeMs mirrors elapsedMs.
+        val elapsedMs = ((1 * 3600) + (2 * 60) + 3) * 1000L
+        val st = ActivityState(elapsedMs = elapsedMs, movingTimeMs = elapsedMs)
         assertEquals("01:02:03", ActivityMetric.TIME.human(st, imperial))
+    }
+
+    @Test fun time_human_freezes_at_moving_time_during_pause() {
+        // 10:00 elapsed wall-clock, but only 5:00 of it was actually moving (paused for 5:00).
+        val st = ActivityState(elapsedMs = 600_000L, movingTimeMs = 300_000L)
+        assertEquals("00:05:00", ActivityMetric.TIME.human(st, imperial))
     }
 
     @Test fun orientation_cardinal() {

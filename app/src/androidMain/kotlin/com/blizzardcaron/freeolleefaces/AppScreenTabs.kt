@@ -5,7 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,7 +14,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
 import com.blizzardcaron.freeolleefaces.ui.ActivityCallbacks
 import com.blizzardcaron.freeolleefaces.ui.ActivityDetailScreen
 import com.blizzardcaron.freeolleefaces.ui.ActivityHistoryCallbacks
@@ -28,12 +27,18 @@ import com.blizzardcaron.freeolleefaces.ui.Screen
 fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
     val context = LocalContext.current
     val activityState by viewModel.activity.state.collectAsState()
+    val pushIntervalMs by viewModel.activity.pushIntervalMs.collectAsState()
+    // Idle-only history read: skipped while running (the list isn't shown), re-read after a
+    // delete (revision bump) or when the idle branch re-enters composition after a recording.
+    val recent = if (activityState.running) {
+        emptyList()
+    } else {
+        val revision = viewModel.historyRevision
+        remember(revision) { viewModel.activityHistory() }
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.activity.onStart() }
-    val livePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) viewModel.activity.onShowLive() }
     fun hasLocation() = ContextCompat.checkSelfPermission(
         context, Manifest.permission.ACCESS_FINE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
@@ -44,33 +49,32 @@ fun ActivityTab(viewModel: AppViewModel, modifier: Modifier) {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-    val showLiveWithPermission: () -> Unit = {
-        if (hasLocation()) {
-            viewModel.activity.onShowLive()
-        } else {
-            livePermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-    }
-    // Auto-start the live instrument glance on tab entry — but only when location is already
-    // granted, so merely opening the Activity tab never fires a system permission dialog. If a
-    // session is already running (e.g. returning mid-recording), leave it untouched.
-    LaunchedEffect(Unit) {
-        if (!activityState.running && hasLocation()) viewModel.activity.onShowLive()
+    val instruments by viewModel.instruments.collectAsState()
+    // Sensors run only while this tab is visible AND idle; a recording start disposes the effect.
+    DisposableEffect(activityState.running) {
+        if (!activityState.running) viewModel.startInstruments()
+        onDispose { viewModel.stopInstruments() }
     }
     ActivityScreen(
         state = activityState,
         unit = viewModel.activity.activityUnit,
         watchSelected = viewModel.activity.watchSelected,
-        lastSummary = AndroidActivityTrackStore(context).latest()?.summary,
+        recent = recent,
         config = viewModel.activity.metricsConfig(),
+        pushIntervalMs = pushIntervalMs,
+        intervalPresetsMs = viewModel.activity.pushIntervalPresetsMs,
+        instruments = instruments,
         callbacks = ActivityCallbacks(
             onStart = startWithPermission,
-            onShowLive = showLiveWithPermission,
             onStop = { viewModel.activity.onStop() },
             onMode = { viewModel.activity.onMode() },
             onToggleUnit = { viewModel.activity.toggleUnit() },
             onOpenHistory = { viewModel.navigateTo(Screen.ActivityHistory) },
             onConfigureMetrics = { viewModel.navigateTo(Screen.ActivityMetricsConfig) },
+            onSelectInterval = { viewModel.activity.setPushInterval(it) },
+            onPause = { viewModel.activity.onPause() },
+            onResume = { viewModel.activity.onResume() },
+            onOpenActivity = { viewModel.openActivity(it) },
         ),
         modifier = modifier,
     )
@@ -114,16 +118,16 @@ fun ActivityMetricsConfigTab(viewModel: AppViewModel, modifier: Modifier) {
         config = viewModel.activity.metricsConfig(),
         unit = viewModel.activity.activityUnit,
         callbacks = ActivityMetricsConfigCallbacks(
-            onMoveUp = { mode, i ->
-                viewModel.activity.moveMetricUp(mode, i)
+            onMoveUp = { i ->
+                viewModel.activity.moveMetricUp(i)
                 revision++
             },
-            onMoveDown = { mode, i ->
-                viewModel.activity.moveMetricDown(mode, i)
+            onMoveDown = { i ->
+                viewModel.activity.moveMetricDown(i)
                 revision++
             },
-            onToggle = { mode, m, on ->
-                viewModel.activity.setMetricEnabled(mode, m, on)
+            onToggle = { m, on ->
+                viewModel.activity.setMetricEnabled(m, on)
                 revision++
             },
             onBack = { viewModel.navigateTo(Screen.Activity) },

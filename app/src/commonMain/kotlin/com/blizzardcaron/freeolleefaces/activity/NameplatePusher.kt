@@ -24,11 +24,12 @@ class NameplatePusher(private val ble: BleClient) {
         rawText: String,
         nowMs: Long,
         currentlyReachable: Boolean,
+        minSpacingMs: Long = ActivityPushDecider.DEFAULT_MIN_SPACING_MS,
     ): Boolean {
         val text = NameplateSanitizer.sanitize(rawText)
         var reachable = currentlyReachable
         val approved = address != null &&
-            ActivityPushDecider.shouldPush(lastPushedText, text, nowMs - lastPushMs, force)
+            ActivityPushDecider.shouldPush(lastPushedText, text, nowMs - lastPushMs, force, minSpacingMs)
         if (approved) {
             ble.send(address, text, OlleeProtocol.TARGET_NAMEPLATE)
                 .onSuccess {

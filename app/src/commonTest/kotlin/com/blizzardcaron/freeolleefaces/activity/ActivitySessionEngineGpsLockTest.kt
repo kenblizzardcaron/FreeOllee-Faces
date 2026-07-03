@@ -25,9 +25,19 @@ class ActivitySessionEngineGpsLockTest {
 
     private fun coords() = Coords(lat = 1.0, lng = 2.0, accuracyM = 5f, provider = "gps")
 
+    // Orientation-first recording order: preserves the GPS-lock coverage below (pinned to a
+    // GPS-derived metric being selected), now that the engine only ever records.
+    private val orientationFirstConfig = ActivityMetricsConfig(
+        recording = listOf(
+            ActivityMetricItem(ActivityMetric.ORIENTATION),
+            ActivityMetricItem(ActivityMetric.PRESSURE),
+            ActivityMetricItem(ActivityMetric.PACE),
+        ),
+    )
+
     @Test fun hasFix_false_until_first_ingest_then_sticky() = runTest {
         val e = engine(ble())
-        e.startLive()
+        e.start()
         assertFalse(e.state.value.hasFix)
         e.ingest(coords(), nowMs = 0L)
         assertTrue(e.state.value.hasFix)
@@ -35,8 +45,8 @@ class ActivitySessionEngineGpsLockTest {
 
     @Test fun tick_pushes_gps_token_before_first_fix() = runTest {
         val ble = ble()
-        val e = engine(ble)
-        e.startLive() // selected = ORIENTATION (GPS-derived)
+        val e = engine(ble, orientationFirstConfig)
+        e.start() // selected = ORIENTATION (GPS-derived)
         e.tick(nowMs = 0L)
         // Pin the exact 6-cell token, not just the trimmed text: the cell width is the binding
         // wire constraint, so a regression in the padding must fail here.
@@ -46,9 +56,8 @@ class ActivitySessionEngineGpsLockTest {
 
     @Test fun pressure_pushes_real_value_before_first_fix() = runTest {
         val ble = ble()
-        val e = engine(ble)
-        e.startLive()
-        e.cycleMetric() // -> ALTITUDE
+        val e = engine(ble, orientationFirstConfig)
+        e.start() // selected = ORIENTATION
         e.cycleMetric() // -> PRESSURE
         e.ingestPressure(1013.0)
         e.tick(nowMs = 0L)
@@ -66,17 +75,23 @@ class ActivitySessionEngineGpsLockTest {
     }
 
     @Test fun start_selects_first_enabled_recording_metric() = runTest {
-        val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMode.RECORDING, ActivityMetric.PACE, false)
+        val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMetric.PACE, false)
         val e = engine(ble(), config)
         e.start()
-        assertEquals(ActivityMetric.DISTANCE, e.state.value.selectedMetric)
+        assertEquals(ActivityMetric.AVG_PACE, e.state.value.selectedMetric)
     }
 
-    @Test fun cycle_skips_disabled_glance_metric() = runTest {
-        val config = ActivityMetricsConfig.DEFAULT.setEnabled(ActivityMode.GLANCE, ActivityMetric.ALTITUDE, false)
+    @Test fun cycle_skips_disabled_recording_metric() = runTest {
+        val config = ActivityMetricsConfig(
+            recording = listOf(
+                ActivityMetricItem(ActivityMetric.ORIENTATION),
+                ActivityMetricItem(ActivityMetric.PRESSURE, enabled = false),
+                ActivityMetricItem(ActivityMetric.PACE),
+            ),
+        )
         val e = engine(ble(), config)
-        e.startLive() // ORIENTATION
-        e.cycleMetric() // skips ALTITUDE -> PRESSURE
-        assertEquals(ActivityMetric.PRESSURE, e.state.value.selectedMetric)
+        e.start() // ORIENTATION
+        e.cycleMetric() // skips disabled PRESSURE -> PACE
+        assertEquals(ActivityMetric.PACE, e.state.value.selectedMetric)
     }
 }
