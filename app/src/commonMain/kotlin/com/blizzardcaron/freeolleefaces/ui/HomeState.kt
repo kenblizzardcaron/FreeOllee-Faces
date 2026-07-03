@@ -43,6 +43,8 @@ data class HomeState(
     val stepsPreview: PreviewState = PreviewState.Loading,
     val stepsUpdated: String? = null,
     val stepsHealthGranted: Boolean = false,
+    val ringConnStepsEnabled: Boolean = false,
+    val ringConnName: String? = null,
 
     val custom: String = "",
     val customSent: String? = null,

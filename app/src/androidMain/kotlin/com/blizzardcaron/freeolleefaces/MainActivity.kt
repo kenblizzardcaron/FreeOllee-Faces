@@ -52,6 +52,7 @@ import com.blizzardcaron.freeolleefaces.prefs.alarmSettings
 import com.blizzardcaron.freeolleefaces.prefs.appSettings
 import com.blizzardcaron.freeolleefaces.prefs.timerSettings
 import com.blizzardcaron.freeolleefaces.ring.AndroidRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingConnDiscovery
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
 import com.blizzardcaron.freeolleefaces.ui.AlarmsCallbacks
 import com.blizzardcaron.freeolleefaces.ui.AlarmsScreen
@@ -192,6 +193,7 @@ private fun createAppViewModel(context: Context): AppViewModel {
         watchConnection = AndroidWatchConnection(context),
         steps = AndroidStepsProvider(context),
         ringSteps = AndroidRingStepsSource(context) { Prefs(appSettings(context)).ringConnAddress },
+        ringDiscovery = RingConnDiscovery(context),
         location = AndroidLocationProvider(context),
         notificationAccess = AndroidNotificationAccess(context),
         timerRepo = TimerSetsRepository(timerSettings(context)),
@@ -244,6 +246,7 @@ private fun rememberAppCallbacks(
         onCustomChange = { text -> viewModel.complications.setCustomText(text) },
         onSendCustom = { viewModel.complications.sendCustom(state.custom) },
         onGrantHealth = { perms.requestHealth() },
+        onToggleRingConnSteps = viewModel::toggleRingConnSteps,
         onGrantNotificationAccess = { openNotificationAccessSettings(context) },
         onToggleNotifications = { viewModel.complications.setNotificationsEnabled(it) },
         onNotificationsUpdateNow = { viewModel.complications.pushCountIfWatch() },

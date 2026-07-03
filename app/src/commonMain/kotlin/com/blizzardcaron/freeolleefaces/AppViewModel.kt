@@ -31,7 +31,9 @@ import com.blizzardcaron.freeolleefaces.location.LocationProvider
 import com.blizzardcaron.freeolleefaces.location.freshnessLabel
 import com.blizzardcaron.freeolleefaces.notifications.NotificationAccessChecker
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.ring.NoopRingDiscovery
 import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingDiscovery
 import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
 import com.blizzardcaron.freeolleefaces.ui.HomeState
@@ -59,7 +61,7 @@ private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 private const val MINUTES_PER_HOUR = 60
 
-// 17 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
+// 18 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
 // into a holder type would only obscure the wiring and worsen test ergonomics
 @Suppress("LongParameterList")
 class AppViewModel(
@@ -76,6 +78,7 @@ class AppViewModel(
     private val versionLabel: String = "",
     private val watchConnection: WatchConnection = NoopWatchConnection,
     private val ringSteps: RingStepsSource = NoopRingStepsSource,
+    private val ringDiscovery: RingDiscovery = NoopRingDiscovery,
     private val clock: Clock = Clock.System,
     private val activityLauncher: ActivitySessionLauncher = NoopActivitySessionLauncher,
     private val instrumentsProvider: InstrumentsProvider = NoopInstrumentsProvider,
@@ -187,6 +190,10 @@ class AppViewModel(
             )
         } ?: PreviewState.Loading,
         batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
+        ringConnStepsEnabled = prefs.ringConnStepsEnabled,
+        ringConnName = prefs.ringConnAddress?.let { addr ->
+            ringDiscovery.bondedRings().firstOrNull { it.address == addr }?.name
+        },
         locationLabel = locLabel(prefs.lastLat, prefs.lastLng),
         locationFreshness = freshnessLabel(prefs.lastLocationFetchedMs, nowMs()),
         notificationCount = prefs.notificationCount,
@@ -304,5 +311,21 @@ class AppViewModel(
                 connectionStatus = ConnectionStatus.NoWatch,
             )
         }
+    }
+
+    /**
+     * Steps-card toggle: opt in/out of reading live steps from a bonded RingConn ring. Turning on
+     * with no ring chosen yet auto-selects it when exactly one bonded ring is found; the saved
+     * address is kept on toggle-off so a later re-enable doesn't need to re-select.
+     */
+    fun toggleRingConnSteps(enabled: Boolean) {
+        prefs.ringConnStepsEnabled = enabled
+        if (enabled && prefs.ringConnAddress == null) {
+            ringDiscovery.bondedRings().singleOrNull()?.let { prefs.ringConnAddress = it.address }
+        }
+        val name = prefs.ringConnAddress?.let { addr ->
+            ringDiscovery.bondedRings().firstOrNull { it.address == addr }?.name
+        }
+        state = state.copy(ringConnStepsEnabled = enabled, ringConnName = name)
     }
 }

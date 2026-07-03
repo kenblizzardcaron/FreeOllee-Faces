@@ -74,6 +74,7 @@ object ScreenFakes {
         onCustomChange = {},
         onSendCustom = {},
         onGrantHealth = {},
+        onToggleRingConnSteps = {},
         onGrantNotificationAccess = {},
         onToggleNotifications = {},
         onNotificationsUpdateNow = {},

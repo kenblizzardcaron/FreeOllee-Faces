@@ -18,6 +18,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -150,6 +151,25 @@ internal fun StepsCard(
                 "Pushed every ${state.updateIntervalMinutes} min while awake.",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Read live steps from RingConn", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        state.ringConnName?.let { "Ring: $it" }
+                            ?: "Pair your ring in the RingConn app first",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = state.ringConnStepsEnabled,
+                    onCheckedChange = callbacks.onToggleRingConnSteps,
+                    modifier = Modifier.semantics { contentDescription = "Read live steps from RingConn" },
+                )
+            }
         }
     }
 }

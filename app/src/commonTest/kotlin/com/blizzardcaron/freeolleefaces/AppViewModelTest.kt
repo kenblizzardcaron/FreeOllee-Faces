@@ -16,6 +16,9 @@ import com.blizzardcaron.freeolleefaces.fakes.FakeScheduler
 import com.blizzardcaron.freeolleefaces.fakes.FakeStepsProvider
 import com.blizzardcaron.freeolleefaces.fakes.FakeWatchConnection
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
+import com.blizzardcaron.freeolleefaces.ring.NoopRingDiscovery
+import com.blizzardcaron.freeolleefaces.ring.RingDevice
+import com.blizzardcaron.freeolleefaces.ring.RingDiscovery
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,6 +95,7 @@ class AppViewModelTest {
         activityStore: ActivityTrackStore = NoopActivityTrackStore,
         clock: Clock = Clock.System,
         instruments: InstrumentsProvider = NoopInstrumentsProvider,
+        ringDiscovery: RingDiscovery = NoopRingDiscovery,
     ): AppViewModel = AppViewModel(
         prefs = prefs,
         ble = FakeBleClient(callLog),
@@ -107,6 +111,7 @@ class AppViewModelTest {
         activityStore = activityStore,
         clock = clock,
         instrumentsProvider = instruments,
+        ringDiscovery = ringDiscovery,
     )
 
     @Test
@@ -276,5 +281,37 @@ class AppViewModelTest {
 
         assertEquals(listOf("start", "stop"), fake.calls)
         assertEquals(90f, vm.instruments.value.headingDeg)
+    }
+
+    @Test
+    fun toggleRingConnSteps_on_withSingleBondedRing_autoSelectsIt() {
+        val ring = RingDevice("AA:BB:CC:DD:EE:FF", "RingConn Gen2-TEST")
+        val discovery = object : RingDiscovery {
+            override fun bondedRings(): List<RingDevice> = listOf(ring)
+        }
+        val prefs = Prefs(MapSettings())
+        val vm = vmWith(FakeWatchConnection(), prefs, ringDiscovery = discovery)
+
+        vm.toggleRingConnSteps(true)
+
+        assertEquals(true, prefs.ringConnStepsEnabled, "toggling on should persist the opt-in")
+        assertEquals(ring.address, prefs.ringConnAddress, "the single bonded ring should be auto-selected")
+        assertEquals(ring.name, vm.state.ringConnName, "state should reflect the auto-selected ring's name")
+    }
+
+    @Test
+    fun toggleRingConnSteps_off_keepsSelectedAddress() {
+        val ring = RingDevice("AA:BB:CC:DD:EE:FF", "RingConn Gen2-TEST")
+        val discovery = object : RingDiscovery {
+            override fun bondedRings(): List<RingDevice> = listOf(ring)
+        }
+        val prefs = Prefs(MapSettings())
+        val vm = vmWith(FakeWatchConnection(), prefs, ringDiscovery = discovery)
+        vm.toggleRingConnSteps(true)
+
+        vm.toggleRingConnSteps(false)
+
+        assertEquals(false, prefs.ringConnStepsEnabled, "toggling off should flip the flag")
+        assertEquals(ring.address, prefs.ringConnAddress, "toggling off must NOT forget the selected ring")
     }
 }
