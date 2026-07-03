@@ -15,7 +15,9 @@ class RingConnDiscovery(context: Context) : RingDiscovery {
     @SuppressLint("MissingPermission")
     override fun bondedRings(): List<RingDevice> = runCatching {
         val manager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        val adapter = manager?.adapter ?: return emptyList()
+        // isEnabled guard mirrors MainActivity's bondedDevices(): with the radio off, don't
+        // trust the bonded list.
+        val adapter = manager?.adapter?.takeIf { it.isEnabled } ?: return emptyList()
         adapter.bondedDevices.orEmpty()
             .filter { it.name?.startsWith(RING_NAME_PREFIX) == true }
             .map { RingDevice(it.address, it.name.orEmpty()) }

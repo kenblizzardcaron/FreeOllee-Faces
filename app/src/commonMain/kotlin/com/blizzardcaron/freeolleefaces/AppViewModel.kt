@@ -33,6 +33,7 @@ import com.blizzardcaron.freeolleefaces.notifications.NotificationAccessChecker
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.ring.NoopRingDiscovery
 import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.RingDevice
 import com.blizzardcaron.freeolleefaces.ring.RingDiscovery
 import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
@@ -191,9 +192,7 @@ class AppViewModel(
         } ?: PreviewState.Loading,
         batteryUpdated = prefs.batteryFetchedMs?.let { "Updated ${clockTime(it)}" },
         ringConnStepsEnabled = prefs.ringConnStepsEnabled,
-        ringConnName = prefs.ringConnAddress?.let { addr ->
-            ringDiscovery.bondedRings().firstOrNull { it.address == addr }?.name
-        },
+        ringConnName = ringNameFor(prefs.ringConnAddress, ringDiscovery.bondedRings()),
         locationLabel = locLabel(prefs.lastLat, prefs.lastLng),
         locationFreshness = freshnessLabel(prefs.lastLocationFetchedMs, nowMs()),
         notificationCount = prefs.notificationCount,
@@ -320,12 +319,14 @@ class AppViewModel(
      */
     fun toggleRingConnSteps(enabled: Boolean) {
         prefs.ringConnStepsEnabled = enabled
+        val rings = ringDiscovery.bondedRings()
         if (enabled && prefs.ringConnAddress == null) {
-            ringDiscovery.bondedRings().singleOrNull()?.let { prefs.ringConnAddress = it.address }
+            rings.singleOrNull()?.let { prefs.ringConnAddress = it.address }
         }
-        val name = prefs.ringConnAddress?.let { addr ->
-            ringDiscovery.bondedRings().firstOrNull { it.address == addr }?.name
-        }
-        state = state.copy(ringConnStepsEnabled = enabled, ringConnName = name)
+        state = state.copy(ringConnStepsEnabled = enabled, ringConnName = ringNameFor(prefs.ringConnAddress, rings))
     }
+
+    /** Display name of the selected ring, or null when none is selected or it is no longer bonded. */
+    private fun ringNameFor(address: String?, rings: List<RingDevice>): String? =
+        address?.let { addr -> rings.firstOrNull { it.address == addr }?.name }
 }

@@ -1,5 +1,7 @@
 package com.blizzardcaron.freeolleefaces.ring
 
+import com.blizzardcaron.freeolleefaces.prefs.Prefs
+
 /**
  * Reads the ring's live onboard step count.
  *  - `success(n)`    — the ring's onboard count
@@ -15,3 +17,11 @@ interface RingStepsSource {
 object NoopRingStepsSource : RingStepsSource {
     override suspend fun readSteps(): Result<Long?> = Result.success(null)
 }
+
+/**
+ * The ring's live count, or null when the opt-in is off or the ring did not contribute.
+ * Single gate shared by every steps path (foreground refresh AND the scheduled auto-push
+ * worker) so the two can't diverge on when the ring is consulted.
+ */
+suspend fun RingStepsSource.stepsIfEnabled(prefs: Prefs): Long? =
+    if (!prefs.ringConnStepsEnabled) null else readSteps().getOrNull()

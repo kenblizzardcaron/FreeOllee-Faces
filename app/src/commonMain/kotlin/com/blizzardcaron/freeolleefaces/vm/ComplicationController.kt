@@ -23,12 +23,14 @@ import com.blizzardcaron.freeolleefaces.notifications.NotificationCount
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.ring.NoopRingStepsSource
 import com.blizzardcaron.freeolleefaces.ring.RingStepsSource
+import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -193,10 +195,6 @@ class ComplicationController(
     fun refreshSteps(push: Boolean) {
         // Ring merge: when the RingConn opt-in is on, display the higher of the ring's live
         // onboard count and Health Connect; on an HC failure a ring read still counts as fresh.
-        /** The ring's live count, or null when the feature is off or the ring did not contribute. */
-        suspend fun ringStepsOrNull(): Long? =
-            if (!prefs.ringConnStepsEnabled) null else ringSteps.readSteps().getOrNull()
-
         fun showFreshSteps(count: Long) {
             prefs.recordStepsFetch(count)
             val payload = DisplayFormatter.steps(count)
@@ -241,10 +239,13 @@ class ComplicationController(
                 return@launch
             }
             update { it.copy(stepsHealthGranted = true, stepsPreview = PreviewState.Loading) }
+            // Ring and Health Connect read concurrently: the ring's short-lived GATT cycle can
+            // take seconds, so it must not extend the refresh past max(ring, HC) wall-clock.
+            val ringAsync = async { ringSteps.stepsIfEnabled(prefs) }
             steps.todaySteps()
-                .onSuccess { count -> showFreshSteps(maxOf(count, ringStepsOrNull() ?: count)) }
+                .onSuccess { count -> showFreshSteps(maxOf(count, ringAsync.await() ?: count)) }
                 .onFailure {
-                    val ring = ringStepsOrNull()
+                    val ring = ringAsync.await()
                     if (ring != null) showFreshSteps(ring) else showCachedOrError()
                 }
         }

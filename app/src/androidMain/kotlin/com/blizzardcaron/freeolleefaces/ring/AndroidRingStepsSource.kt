@@ -12,6 +12,8 @@ import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
@@ -35,33 +37,38 @@ class AndroidRingStepsSource(
 
     private val appContext = context.applicationContext
 
+    // Process-wide readMutex: the foreground refresh and the AutoUpdateWorker each construct
+    // their own source, and two concurrent connectGatt() calls to the same peripheral are a
+    // classic status-133 hazard. Serialize every ring read across the process.
     @SuppressLint("MissingPermission")
     override suspend fun readSteps(): Result<Long?> = withContext(Dispatchers.IO) {
-        val address = addressProvider()
-            ?: return@withContext Result.failure(IllegalStateException("no ring selected"))
-        val manager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        val adapter = manager?.adapter
-            ?: return@withContext Result.failure(IllegalStateException("no bluetooth adapter"))
-        val device = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
-            ?: return@withContext Result.failure(IllegalStateException("bad ring address"))
-        val mac = macBytes(address)
-            ?: return@withContext Result.failure(IllegalStateException("bad ring address"))
+        readMutex.withLock {
+            val address = addressProvider()
+                ?: return@withLock Result.failure(IllegalStateException("no ring selected"))
+            val manager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            val adapter = manager?.adapter
+                ?: return@withLock Result.failure(IllegalStateException("no bluetooth adapter"))
+            val device = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
+                ?: return@withLock Result.failure(IllegalStateException("bad ring address"))
+            val mac = macBytes(address)
+                ?: return@withLock Result.failure(IllegalStateException("bad ring address"))
 
-        val result = CompletableDeferred<Long?>()
-        val callback = RingGattCallback(mac, result)
-        val gatt = runCatching {
-            device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
-        }.getOrNull()
-            ?: return@withContext Result.failure(IllegalStateException("connectGatt failed"))
+            val result = CompletableDeferred<Long?>()
+            val callback = RingGattCallback(mac, result)
+            val gatt = runCatching {
+                device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
+            }.getOrNull()
+                ?: return@withLock Result.failure(IllegalStateException("connectGatt failed"))
 
-        try {
-            // null on timeout (connected but silent) or on an internal give-up.
-            Result.success(withTimeoutOrNull(READ_TIMEOUT_MS) { result.await() })
-        } finally {
-            // Mirror WatchLink's teardown: disconnect before close, or short-lived connects can
-            // leak GATT client registrations on some stacks.
-            runCatching { gatt.disconnect() }
-            runCatching { gatt.close() }
+            try {
+                // null on timeout (connected but silent) or on an internal give-up.
+                Result.success(withTimeoutOrNull(READ_TIMEOUT_MS) { result.await() })
+            } finally {
+                // Mirror WatchLink's teardown: disconnect before close, or short-lived connects
+                // can leak GATT client registrations on some stacks.
+                runCatching { gatt.disconnect() }
+                runCatching { gatt.close() }
+            }
         }
     }
 
@@ -185,6 +192,9 @@ class AndroidRingStepsSource(
     }.getOrNull()
 
     private companion object {
+        /** Serializes ring reads process-wide (foreground refresh vs AutoUpdateWorker). */
+        val readMutex = Mutex()
+
         val SERVICE: UUID = UUID.fromString("8327ad99-2d87-4a22-a8ce-6dd7971c0437")
         val WRITE_CHAR: UUID = UUID.fromString("8327ad98-2d87-4a22-a8ce-6dd7971c0437")
         val NOTIFY_CHAR: UUID = UUID.fromString("8327ad97-2d87-4a22-a8ce-6dd7971c0437")
