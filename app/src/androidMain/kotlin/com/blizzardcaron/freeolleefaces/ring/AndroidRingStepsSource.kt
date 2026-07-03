@@ -58,6 +58,9 @@ class AndroidRingStepsSource(
             // null on timeout (connected but silent) or on an internal give-up.
             Result.success(withTimeoutOrNull(READ_TIMEOUT_MS) { result.await() })
         } finally {
+            // Mirror WatchLink's teardown: disconnect before close, or short-lived connects can
+            // leak GATT client registrations on some stacks.
+            runCatching { gatt.disconnect() }
             runCatching { gatt.close() }
         }
     }
@@ -69,6 +72,15 @@ class AndroidRingStepsSource(
         private val result: CompletableDeferred<Long?>,
     ) : BluetoothGattCallback() {
 
+        /**
+         * The command to send once the in-flight write is acked. Android's BluetoothGatt allows
+         * only ONE outstanding write; a second writeCharacteristic before the ack is rejected,
+         * not queued (see WatchLink's busy-retry note), so the auth-response and descriptor-prompt
+         * writes must be sequenced through [onCharacteristicWrite].
+         */
+        @Volatile
+        private var nextWrite: ByteArray? = null
+
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> gatt.discoverServices()
@@ -77,6 +89,10 @@ class AndroidRingStepsSource(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                result.complete(null)
+                return
+            }
             val notify = gatt.getService(SERVICE)?.getCharacteristic(NOTIFY_CHAR)
             val cccd = notify?.getDescriptor(CCCD)
             if (notify == null || cccd == null) {
@@ -117,9 +133,19 @@ class AndroidRingStepsSource(
                 (value[0].toInt() and BYTE_MASK) == CHALLENGE_ID &&
                 value[1].toInt() == 0
             if (isChallenge) {
+                nextWrite = CMD_DESCRIPTOR // sent from onCharacteristicWrite once the auth write acks
                 write(gatt, RingAuth.authCommand(value[CHALLENGE_INDEX].toInt() and BYTE_MASK, mac))
-                write(gatt, CMD_DESCRIPTOR)
             }
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int,
+        ) {
+            val queued = nextWrite ?: return
+            nextWrite = null
+            write(gatt, queued)
         }
 
         /** One command write, across the SDK's pre-/post-Tiramisu API split (mirrors WatchLink). */
