@@ -129,7 +129,8 @@ same windows likewise. From tomorrow both apps run clean.
 
 ## Still owed
 
-- Hard-run >255-steps-per-bucket capture to settle u8 saturation vs overflow field.
+- Hard-run >255-steps-per-bucket capture to settle u8 saturation vs overflow field —
+  full protocol in `plans/2026-07-08-ringconn-hardrun-capture.md`.
 - No-ack longevity: confirm large (multi-hour) backlogs stream fully to a silent client.
 - Sleep-exclusion parity check against the app on a clean day (today's RingConn data was
   corrupted by the ack test, so parity can only be judged from tomorrow onward).
