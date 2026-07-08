@@ -87,8 +87,10 @@ object RingRecords {
     }
 
     /**
-     * Build an ACK command for the given frame id (0x4c or 0x47).
-     * Result: byteArrayOf((frameId or 0x80).toByte(), 0x00, 0x00)
+     * Build an ACK command for the given frame id, i.e. `<id|0x80> 00 00` (`47` -> `c7 00 00`).
+     * Acking advances the ring's shared per-stream replay cursor: required on `47`/`11` to
+     * unblock the session, deliberately NEVER sent for `4c` activity frames (see
+     * AndroidRingStepsSource's ack policy).
      */
     fun ackCommand(frameId: Int): ByteArray {
         return byteArrayOf(

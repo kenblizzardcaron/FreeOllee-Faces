@@ -92,14 +92,47 @@ Alternative idempotent-read variant (needs hardware test): ack only frames wholl
 before today, leave today's un-acked so every read replays the whole day — no phone-side
 persistence, but unknown whether the ring keeps streaming without per-frame acks.
 
-## Blocked on user
+## Decisions & hardware verification (2026-07-08)
 
-1. **Product decision:** daily = raw Σ all buckets (simple, over-counts vs app by the
-   sleep artifacts, ~+400 on the captured day) vs sleep-excluded (app-parity-ish, needs
-   the flag rule pinned) vs capture a fresh day with precise app readings first.
-2. **Hardware captures owed:** (a) hard-run >255-steps-per-bucket test for field width;
-   (b) if app-parity chosen: a day's capture with exact app numbers at noted times;
-   (c) ack-starvation test (does the ring keep streaming to a client that never acks?).
+1. **Product decision (Ken):** sleep-excluded best-effort — count a bucket unless
+   body[6:11] are all 0x01. Implemented.
+2. **On-device 2026-07-08 (Pixel 7, debug build):** the full read pipeline works — the
+   ring replayed the day's backlog to our client, `ring_daily_sum` hit 4268 by 10:09 MT
+   (plausible true daily), watermark tracked the newest bucket, max(ring, HC) displayed it.
+3. **CRITICAL: the replay cursor is SHARED, not per-client.** Our per-frame acks consumed
+   the records permanently — the official app reopened to 0 steps and only accumulated the
+   post-10:09 drip (132 by 13:48). Today's activity/wellness morning is unrecoverable in
+   RingConn. Frames arrive pipelined (4-in-1ms) — the ring does NOT gate streaming on acks.
+4. **Pure no-ack FAILED on hardware:** a fully silent client works exactly once, then
+   stalls — the ring re-sends the pending un-acked `47` wellness frame every session and
+   never opens the `4c` stream behind it. Meanwhile records delivered un-acked are never
+   re-delivered to OTHER clients (the 13:52-14:05 window is permanently absent from the
+   official app). Streams gate on in-order acks.
+5. **FINAL architecture (payload-verified end-to-end same day): ack everything EXCEPT
+   `4c`.** Send `c7`/`91` (unblocks the session), never `cc`. Result, confirmed in the
+   full btsnoop: our reads receive the activity window since the SHARED cursor (which only
+   the official app's `cc` advances), re-delivered idempotently every read (watermark
+   dedupes: banked +138/+181/+53 across three reads of an overlapping window); the official
+   app afterwards received the identical records (15:38→15:50 + next bucket) and acked
+   them. Zero activity-record theft. Cost: we consume `47` wellness records, which the
+   official app's sleep/vitals scores demonstrably survive (83/90 intact after a whole
+   morning of `c7` acks). If the official app is ever dropped, the un-acked `4c` window
+   grows to ring storage (~7 days) — reads stay correct, just longer; an opt-in ack mode
+   can be added then.
+
+## Experiment cost (owed an apology)
+
+Today's (2026-07-08) official-app history is permanently gutted by the ack experiments:
+the 00:00→10:08 backlog (~4268 steps incl. the morning treadmill) and the 13:52→14:05
+window (~250 steps) were consumed and are unrecoverable. Wellness `47` records from the
+same windows likewise. From tomorrow both apps run clean.
+
+## Still owed
+
+- Hard-run >255-steps-per-bucket capture to settle u8 saturation vs overflow field.
+- No-ack longevity: confirm large (multi-hour) backlogs stream fully to a silent client.
+- Sleep-exclusion parity check against the app on a clean day (today's RingConn data was
+  corrupted by the ack test, so parity can only be judged from tomorrow onward).
 
 ## Capture inventory (scratchpad)
 

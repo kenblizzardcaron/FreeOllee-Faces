@@ -34,9 +34,18 @@ import java.util.UUID
  * CCCD <- `01 00`; write `01 00 00`; notify `81 00 <challenge> <xor>`; write
  * `01 01 <r0 r1 r2> 00` ([RingAuth.authCommand]); then mimic the official app's post-auth
  * sequence (`d0 00 00`, time-sync `02 00 <now> 00 01 00`, poll `07 00 00`). The ring replays
- * every record since the last acked frame as `4c`/`47` notifies ([RingRecords.parse]); each is
- * acked (`cc`/`c7`/`91` = id|0x80) AFTER its buckets are persisted into [RingDailySteps], so a
- * crash mid-stream only re-replays. A frame with remaining == 0 plus a quiet gap ends the read.
+ * every record since the last acked frame as `4c`/`47` notifies ([RingRecords.parse]); the
+ * buckets are persisted into [RingDailySteps], whose watermark makes re-replays idempotent.
+ * A frame with remaining == 0 plus a quiet gap ends the read.
+ *
+ * ACK POLICY (hardware-verified 2026-07-08): the ring keeps ONE shared replay cursor per
+ * record stream, not one per client — acking `4c` frames permanently consumed the day's
+ * activity records before the official app could sync them. But a fully silent client stalls:
+ * the ring re-sends the pending `47` wellness frame every session and never opens the `4c`
+ * stream until it is acked. So we ack every stream EXCEPT `4c` (`c7`/`91`, never `cc`):
+ * activity records replay to us idempotently ([RingDailySteps]'s watermark dedupes) and the
+ * official app keeps receiving them; only its wellness records are consumed by us, which its
+ * sleep/vitals scores demonstrably survive.
  */
 class AndroidRingStepsSource(
     context: Context,
@@ -160,7 +169,7 @@ class AndroidRingStepsSource(
             // live activity-bout counter, not a daily total.
             when {
                 recordFrame != null -> onRecordFrame(gatt, recordFrame, id)
-                // `11` event frames advance their own ack cursor; ack so they don't replay forever.
+                // `11` event frames: ack so the ring proceeds past them (see the class doc).
                 id == EVENT_FRAME_ID -> enqueueWrite(gatt, RingRecords.ackCommand(id))
                 isChallenge(id, value) -> onChallenge(gatt, value)
             }
@@ -178,14 +187,20 @@ class AndroidRingStepsSource(
             armQuietTimer(REPLAY_WAIT_MS)
         }
 
-        /** Persist the frame's buckets FIRST, then ack — a crash before the ack only re-replays. */
+        /**
+         * Persist the frame's buckets. Ack every stream EXCEPT `4c` activity (see the class
+         * doc): a `cc` ack would consume the activity records away from the official app.
+         */
         private fun onRecordFrame(gatt: BluetoothGatt, frame: RingRecordFrame, id: Int) {
             sawRecords = true
             for (record in frame.activityRecords) {
                 dailySteps.record(record.unixSeconds, record.steps, countable = !record.sleepFlagged)
             }
-            if (id == RingRecords.FRAME_ID_ACTIVITY && frame.remaining == 0) activityDrained = true
-            enqueueWrite(gatt, RingRecords.ackCommand(id))
+            if (id == RingRecords.FRAME_ID_ACTIVITY) {
+                if (frame.remaining == 0) activityDrained = true
+            } else {
+                enqueueWrite(gatt, RingRecords.ackCommand(id))
+            }
             armQuietTimer(if (activityDrained) DRAINED_QUIET_MS else REPLAY_WAIT_MS)
         }
 
