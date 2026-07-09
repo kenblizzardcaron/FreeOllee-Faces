@@ -1,6 +1,7 @@
 package com.blizzardcaron.freeolleefaces.notifications
 
 import android.app.Notification
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.blizzardcaron.freeolleefaces.ble.AndroidBleClient
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
 /**
  * Counts undismissed, non-persistent notifications and pushes the badge to the watch's
  * weekday slot. Requires the user to grant "Notification access" in system settings. Live
- * pushes are debounced (~2 s) and only happen while the notification overlay is enabled
+ * pushes are debounced (~2 s), capped at one BLE write per minute (trailing-edge — the
+ * latest count lands at the minute boundary), and only happen while the overlay is enabled
  * ([Prefs.notificationsEnabled]) — independent of which name-tag face is active;
  * [com.blizzardcaron.freeolleefaces.auto.AutoUpdateWorker] is the periodic backstop.
  *
@@ -31,6 +33,10 @@ class NotificationCountService : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var pushJob: Job? = null
+
+    /** Monotonic time of the last BLE push; seeded so the first push waits only the debounce. */
+    @Volatile
+    private var lastPushMs = SystemClock.elapsedRealtime() - NotificationPushThrottle.MIN_INTERVAL_MS
     private val prefs by lazy { Prefs(appSettings(applicationContext)) }
 
     override fun onListenerConnected() {
@@ -69,14 +75,21 @@ class NotificationCountService : NotificationListenerService() {
     }
 
     private fun schedulePush() {
-        // Debounce: a flurry of posts/removals collapses into one push.
+        // Debounce + throttle: a flurry collapses into one push, paced ≥1 min apart.
         pushJob?.cancel()
         pushJob = scope.launch {
-            delay(DEBOUNCE_MS)
+            delay(
+                NotificationPushThrottle.delayFor(
+                    nowMs = SystemClock.elapsedRealtime(),
+                    lastPushMs = lastPushMs,
+                    debounceMs = DEBOUNCE_MS,
+                ),
+            )
             if (!prefs.notificationsEnabled) return@launch
             val addr = prefs.watchAddress ?: return@launch
             AndroidBleClient(applicationContext)
                 .sendPacket(addr, NotificationCount.packetFor(prefs.notificationCount))
+            lastPushMs = SystemClock.elapsedRealtime()
         }
     }
 
