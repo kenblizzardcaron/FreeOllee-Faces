@@ -89,6 +89,8 @@ class NotificationCountService : NotificationListenerService() {
             val addr = prefs.watchAddress ?: return@launch
             AndroidBleClient(applicationContext)
                 .sendPacket(addr, NotificationCount.packetFor(prefs.notificationCount))
+            // Stamped even if the send failed: the attempt already woke the radio, and pacing
+            // failures avoids hammering an out-of-range watch. The worker backstop re-asserts.
             lastPushMs = SystemClock.elapsedRealtime()
         }
     }
