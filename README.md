@@ -5,9 +5,9 @@ over Bluetooth Low Energy.
 
 ## Screenshots
 
-| Complications | Activity | Alarms |
-|:---:|:---:|:---:|
-| <img src="docs/screenshots/home.png" width="220" alt="Complications"> | <img src="docs/screenshots/activity.png" width="220" alt="Activity"> | <img src="docs/screenshots/alarms.png" width="220" alt="Alarms"> |
+| Complications | Activity |
+|:---:|:---:|
+| <img src="docs/screenshots/home.png" width="220" alt="Complications"> | <img src="docs/screenshots/activity.png" width="220" alt="Activity"> |
 
 <sub>Generated per-screen by the accessibility + screenshot CI job.</sub>
 
@@ -35,12 +35,8 @@ fires at that time (rolling to the next day for times already past, up to ~24h o
 within a set can be sorted by duration or hand-reordered with ▲/▼, and the
 set library on the dashboard can be reordered the same way.
 
-**Alarms** — up to 5 alarms with day-of-week repeats, labels, and all 15 watch chime
-tones by name. The watch itself stores only a single alarm with no day field, so the app
-computes the soonest occurrence and re-arms the watch's one slot after every edit and
-every fire — without disturbing the watch's hourly-chime settings, which live in the same
-BLE record. If a re-arm push can't reach the watch it retries at 2/5/15 minutes, then posts a
-notification with a Retry action — a missed push otherwise means a silently skipped alarm.
+Alarms are handled by the official Ollee app; FreeOllee's quick timer still offers an
+alarm-style wall-clock target for one-shot countdowns.
 
 **Activity mode** — a GPS-tracked walk/run that streams live **pace**, **average pace**,
 **distance**, and **time** to the watch's name tag while you move. Start and stop from the
