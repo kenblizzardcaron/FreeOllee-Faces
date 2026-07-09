@@ -34,33 +34,106 @@ semantics, unpushed) until this lands.
 - Records within a frame appear delimited by `d0 <ts(4)>` boundaries (confirm with
   splitter).
 
-## CRACKED (2026-07-03, same session)
+## CRACKED (2026-07-03, same session) — see 07-08 corrections below
 
 - **Step field: `4c` activity record body byte [14], single u8 = steps in that 2.5-min bucket.**
-  Sum over the 20 captured buckets = **626** vs ground-truth daily 636 (gap = the 2-3
-  buckets after 07:40 not in this frame). Per-bucket values track the bouts exactly:
-  84 @06:53 (treadmill), 110/98 @07:05-07:08, 41 @07:20 (stairs), ~0 at rest. To confirm
-  field WIDTH before shipping: a fast runner may exceed 255/bucket — capture a hard run and
-  check whether [13:15] or [14:16] is the real u16, or [14] stays u8 with a carry field.
-- **Fetch-since command: `02 00 <ts:u32-be> <b6> 01 00`** where ts is the same 2020-epoch
-  UTC+8 seconds. Observed the app walk ts forward (…4b a5 → 4b c6 → 4c 02) to page/ack.
-- **Stream pump / record request: `07 00 00`** (repeated), with `cc 00 00` / `c7 00 00`
-  as related control (enumerate/close?). Records arrive as `47`/`4c` notifies on 0x0804.
-- **Record framing: `d0`-delimited** — each record is `d0 <ts:u32-be> <body>`; `4c` bodies
-  are 18-19 B (2.5-min activity buckets), `47` bodies 43-44 B (15-min wellness/HR series,
-  NOT steps). Frame header `<id> 00 <b2>` where b2 looks like a remaining-count (…0d,07,01,00).
-- Body byte [4] is a constant record-type marker (0x12) — NOT steps (was a false 586 hit).
+  Per-bucket values track the bouts exactly: 84 @06:53 (treadmill), 110/98 @07:05-07:08,
+  41 @07:20 (stairs), ~0 at rest. Post-wake window (06:53→07:40) sums to 626 ≈ the observed
+  app climb (~622).
+- Body byte [4] is NOT steps (was a false 586 hit).
 
-## Remaining before implementation
+## CORRECTED & COMPLETED (2026-07-08, reassembly re-analysis)
 
-1. Confirm step field width (u8 vs u16) with a >255/bucket run capture.
-2. Nail the `02 00` fetch-since flags (b6/last two bytes) and stream-termination signal so
-   we fetch TODAY-only, minimal frames, and know when the stream is done.
-3. Decoder: add MTU-reassembly to decode_btsnoop.py (record frames can exceed one ACL).
-4. Port to `AndroidRingStepsSource`: after auth, send `02 00 <today-midnight-ts>`, pump
-   `07 00 00`, reassemble 4c frames, sum byte[14] over today's buckets, return the total.
-   Replaces the live-bout counter; merge reverts to `max(ring_daily, HC)`.
-5. On-device: our sum == RingConn app's daily, hands-off.
+Re-decoded the full capture with ACL reassembly (`decode_btsnoop.py` updated;
+`ring_records.py` is the new record analyzer, both in ~/ringconn-captures/). The capture
+spans **~11.4 h and two phone sessions** (07-02 evening + 07-03 morning), which the first
+pass misread as one sync. Corrections:
+
+- **Record framing is fixed-width, NOT `d0`-delimited.** Frame = `<id> 00 <b2>` +
+  back-to-back records + 1 trailing byte (checksum?). `4c` record = ts:u32be + body[19]
+  (2.5-min bucket, steps u8 at body[14]); `47` record = ts:u32be + body[43] (15-min
+  wellness). Lengths confirm: 142 = 3 + 6×23 + 1; 145 = 3 + 3×47 + 1. The "d0 delimiter"
+  was the last body byte of the previous record.
+- **`02 00 <ts> …` is a time-sync/ack, NOT fetch-since.** Its ts tracks the wall clock at
+  send time in both sessions; reply is a bare `82 00 00`. There is NO fetch-since command
+  in the capture — the ring pushes un-acked records automatically.
+- **Transport model: continuous drip + cursor-by-ack.** While connected, the ring streams
+  records near-real-time as `47`/`4c` notifies on 0x0804. The phone acks each frame by
+  type: `cc 00 00` acks a `4c` frame, `c7 00 00` acks `47`, `91 00 00` acks `11`
+  (ack id = frame id | 0x80). On reconnect the ring replays every record since the last
+  ack — the morning session opened with a b2-countdown backlog burst (61→55→…→0) covering
+  exactly the overnight gap. **`b2` = records remaining after this frame; `b2 == 0` =
+  stream drained** (per record type). `07 00 00` is a status poll (reply `87`, the live
+  bout counter), not a record pump. `d0 00 00` gets no reply (ack for an unseen type-50
+  frame, or keepalive).
+- **Σ body[14] over a calendar day ≠ the app's daily.** All of 07-03 through 07:40 sums
+  to 1071; the app showed ~636. Overnight buckets (user asleep) carry ~370 "steps" —
+  sleep-movement artifacts. The app excludes sleep-flagged buckets; overnight records have
+  `01 01 01 01 01` at body[6:11] (sensor/wear state), daytime records have real values.
+  No tested flag rule reproduces 636 exactly (not-all-01 → 694; post-wake-only → 626) —
+  the eyeballed ground truth (~14 → ~636 → ~699) is too fuzzy to pin the app's exact
+  algorithm from this capture.
+- **No daily-summary frame type exists** (0x0804 carries only 10/11/47/4c/81/82/87), and
+  no monotonic daily-cumulative field hides in the `4c` body (exhaustive u16/u24 offset
+  scan). Daily totals MUST be computed by summing buckets.
+- Field width: body[13] and body[15] are independent fields (both vary on zero-step
+  records), so [14] is a standalone u8. NOTE: 255 steps/bucket = 102 steps/min — a brisk
+  walk or run exceeds that, so there must be saturation, an overflow/carry field, or
+  adaptive bucket cadence. Still needs the hard-run capture to settle.
+
+## Implementation model (replaces old item 4)
+
+`AndroidRingStepsSource.readSteps()`: connect → auth → enable notifies → receive the
+replay backlog → ack frames (`cc`/`c7`/`91`) → drained when each type hits `b2 == 0` →
+sum today's `4c` buckets (exclusion rule per the product decision below) → **persist a
+running daily sum phone-side** (the ring only replays since last ack, so each read adds
+new buckets to the stored total; reset at local midnight).
+Alternative idempotent-read variant (needs hardware test): ack only frames wholly from
+before today, leave today's un-acked so every read replays the whole day — no phone-side
+persistence, but unknown whether the ring keeps streaming without per-frame acks.
+
+## Decisions & hardware verification (2026-07-08)
+
+1. **Product decision (Ken):** sleep-excluded best-effort — count a bucket unless
+   body[6:11] are all 0x01. Implemented.
+2. **On-device 2026-07-08 (Pixel 7, debug build):** the full read pipeline works — the
+   ring replayed the day's backlog to our client, `ring_daily_sum` hit 4268 by 10:09 MT
+   (plausible true daily), watermark tracked the newest bucket, max(ring, HC) displayed it.
+3. **CRITICAL: the replay cursor is SHARED, not per-client.** Our per-frame acks consumed
+   the records permanently — the official app reopened to 0 steps and only accumulated the
+   post-10:09 drip (132 by 13:48). Today's activity/wellness morning is unrecoverable in
+   RingConn. Frames arrive pipelined (4-in-1ms) — the ring does NOT gate streaming on acks.
+4. **Pure no-ack FAILED on hardware:** a fully silent client works exactly once, then
+   stalls — the ring re-sends the pending un-acked `47` wellness frame every session and
+   never opens the `4c` stream behind it. Meanwhile records delivered un-acked are never
+   re-delivered to OTHER clients (the 13:52-14:05 window is permanently absent from the
+   official app). Streams gate on in-order acks.
+5. **FINAL architecture (payload-verified end-to-end same day): ack everything EXCEPT
+   `4c`.** Send `c7`/`91` (unblocks the session), never `cc`. Result, confirmed in the
+   full btsnoop: our reads receive the activity window since the SHARED cursor (which only
+   the official app's `cc` advances), re-delivered idempotently every read (watermark
+   dedupes: banked +138/+181/+53 across three reads of an overlapping window); the official
+   app afterwards received the identical records (15:38→15:50 + next bucket) and acked
+   them. Zero activity-record theft. Cost: we consume `47` wellness records, which the
+   official app's sleep/vitals scores demonstrably survive (83/90 intact after a whole
+   morning of `c7` acks). If the official app is ever dropped, the un-acked `4c` window
+   grows to ring storage (~7 days) — reads stay correct, just longer; an opt-in ack mode
+   can be added then.
+
+## Experiment cost (owed an apology)
+
+Today's (2026-07-08) official-app history is permanently gutted by the ack experiments:
+the 00:00→10:08 backlog (~4268 steps incl. the morning treadmill) and the 13:52→14:05
+window (~250 steps) were consumed and are unrecoverable. Wellness `47` records from the
+same windows likewise. From tomorrow both apps run clean.
+
+## Still owed
+
+- Hard-run >255-steps-per-bucket capture to settle u8 saturation vs overflow field —
+  full protocol in `plans/2026-07-08-ringconn-hardrun-capture.md`.
+- No-ack longevity: confirm large (multi-hour) backlogs stream fully to a silent client.
+- Sleep-exclusion parity check against the app on a clean day (today's RingConn data was
+  corrupted by the ack test, so parity can only be judged from tomorrow onward).
 
 ## Capture inventory (scratchpad)
 
