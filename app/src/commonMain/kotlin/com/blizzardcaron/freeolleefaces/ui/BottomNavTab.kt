@@ -1,10 +1,9 @@
 package com.blizzardcaron.freeolleefaces.ui
 
-/** The six top-level tabs in the bottom navigation bar, in display order. */
+/** The four top-level tabs in the bottom navigation bar, in display order. */
 enum class BottomNavTab(val screen: Screen, val label: String, val glyph: String) {
     Complications(Screen.Home, "Complications", "▦"),
     Activity(Screen.Activity, "Activity", "🏃"),
-    Alarm(Screen.Alarms, "Alarm", "⏰"),
     Timer(Screen.TimerSets, "Timer", "⏱"),
     Settings(Screen.Settings, "Settings", "⚙");
 

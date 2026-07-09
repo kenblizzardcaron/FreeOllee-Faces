@@ -20,7 +20,7 @@ fun TimePickerDialog(
     val st = rememberTimePickerState(
         initialHour = initialMinuteOfDay / MINUTES_PER_HOUR,
         initialMinute = initialMinuteOfDay % MINUTES_PER_HOUR,
-        // 12h with AM/PM — matches the AM/PM button labels and the Alarm screen.
+        // 12h with AM/PM — matches the AM/PM button labels.
         is24Hour = false,
     )
     AlertDialog(

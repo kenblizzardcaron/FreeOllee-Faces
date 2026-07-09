@@ -11,7 +11,6 @@ class BottomNavTabTest {
     fun forScreen_maps_top_level_screens() {
         assertEquals(BottomNavTab.Complications, BottomNavTab.forScreen(Screen.Home))
         assertEquals(BottomNavTab.Activity, BottomNavTab.forScreen(Screen.Activity))
-        assertEquals(BottomNavTab.Alarm, BottomNavTab.forScreen(Screen.Alarms))
         assertEquals(BottomNavTab.Timer, BottomNavTab.forScreen(Screen.TimerSets))
         assertEquals(BottomNavTab.Settings, BottomNavTab.forScreen(Screen.Settings))
     }

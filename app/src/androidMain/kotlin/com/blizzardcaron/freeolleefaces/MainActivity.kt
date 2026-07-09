@@ -54,8 +54,6 @@ import com.blizzardcaron.freeolleefaces.prefs.timerSettings
 import com.blizzardcaron.freeolleefaces.ring.AndroidRingStepsSource
 import com.blizzardcaron.freeolleefaces.ring.RingConnDiscovery
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
-import com.blizzardcaron.freeolleefaces.ui.AlarmsCallbacks
-import com.blizzardcaron.freeolleefaces.ui.AlarmsScreen
 import com.blizzardcaron.freeolleefaces.ui.BondedDevice
 import com.blizzardcaron.freeolleefaces.ui.BondedDevicesDialog
 import com.blizzardcaron.freeolleefaces.ui.BottomNavTab
@@ -330,7 +328,6 @@ private fun AppBottomBar(screen: Screen, viewModel: AppViewModel) {
                     selected = BottomNavTab.forScreen(screen) == tab,
                     onClick = {
                         when (tab) {
-                            BottomNavTab.Alarm -> viewModel.alarms.refreshAlarms()
                             BottomNavTab.Timer -> viewModel.timers.refreshTimers()
                             else -> {}
                         }
@@ -410,20 +407,6 @@ private fun AppContent(
             modifier = modifier,
         )
         Screen.TimerSets -> AppTimerSetsScreen(viewModel = viewModel, state = state, modifier = modifier)
-        Screen.Alarms -> AlarmsScreen(
-            alarms = viewModel.alarms.items,
-            nextSummary = viewModel.alarms.nextAlarmSummary,
-            callbacks = AlarmsCallbacks(
-                onAdd = { viewModel.alarms.addAlarm() },
-                onSave = { viewModel.alarms.saveAlarm(it) },
-                onToggle = { id, enabled -> viewModel.alarms.toggleAlarm(id, enabled) },
-                onDelete = { viewModel.alarms.deleteAlarm(it) },
-                onBack = { viewModel.navigateTo(Screen.Home) },
-                onReconnect = { viewModel.onReconnect() },
-            ),
-            connectionStatus = state.connectionStatus,
-            modifier = modifier,
-        )
         Screen.TimerSetEdit -> {
             val editing = viewModel.timers.editingSet
             if (editing == null) {

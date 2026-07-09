@@ -7,7 +7,6 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityTrack
 import com.blizzardcaron.freeolleefaces.activity.ActivityUnit
 import com.blizzardcaron.freeolleefaces.activity.IdleInstruments
 import com.blizzardcaron.freeolleefaces.activity.TrackPoint
-import com.blizzardcaron.freeolleefaces.alarm.Alarm
 import com.blizzardcaron.freeolleefaces.ble.ConnectionStatus
 import com.blizzardcaron.freeolleefaces.format.BatteryReadout
 import com.blizzardcaron.freeolleefaces.timer.TimerSet
@@ -15,7 +14,6 @@ import com.blizzardcaron.freeolleefaces.timer.TimerSlot
 import com.blizzardcaron.freeolleefaces.ui.ActivityCallbacks
 import com.blizzardcaron.freeolleefaces.ui.ActivityHistoryCallbacks
 import com.blizzardcaron.freeolleefaces.ui.ActivityMetricsConfigCallbacks
-import com.blizzardcaron.freeolleefaces.ui.AlarmsCallbacks
 import com.blizzardcaron.freeolleefaces.ui.HomeCallbacks
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
@@ -124,19 +122,6 @@ object ScreenFakes {
         onStart = {},
         onMoveUp = {},
         onMoveDown = {},
-        onBack = {},
-        onReconnect = {},
-    )
-
-    val alarms = listOf(
-        Alarm(id = "1", hour = 7, minute = 0),
-        Alarm(id = "2", hour = 22, minute = 30, enabled = false),
-    )
-    val alarmsCallbacks = AlarmsCallbacks(
-        onAdd = {},
-        onSave = {},
-        onToggle = { _, _ -> },
-        onDelete = {},
         onBack = {},
         onReconnect = {},
     )
