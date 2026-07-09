@@ -38,9 +38,7 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
 import com.blizzardcaron.freeolleefaces.activity.AndroidInstrumentsProvider
-import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
 import com.blizzardcaron.freeolleefaces.auto.AlarmRearm
-import com.blizzardcaron.freeolleefaces.auto.AndroidAlarmScheduler
 import com.blizzardcaron.freeolleefaces.auto.AndroidScheduler
 import com.blizzardcaron.freeolleefaces.ble.AndroidBleClient
 import com.blizzardcaron.freeolleefaces.ble.AndroidWatchConnection
@@ -48,7 +46,6 @@ import com.blizzardcaron.freeolleefaces.health.AndroidStepsProvider
 import com.blizzardcaron.freeolleefaces.location.AndroidLocationProvider
 import com.blizzardcaron.freeolleefaces.notifications.AndroidNotificationAccess
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
-import com.blizzardcaron.freeolleefaces.prefs.alarmSettings
 import com.blizzardcaron.freeolleefaces.prefs.appSettings
 import com.blizzardcaron.freeolleefaces.prefs.timerSettings
 import com.blizzardcaron.freeolleefaces.ring.AndroidRingStepsSource
@@ -197,8 +194,6 @@ private fun createAppViewModel(context: Context): AppViewModel {
         timerRepo = TimerSetsRepository(timerSettings(context)),
         metricsRepo = ActivityMetricsRepository(appSettings(context)),
         scheduler = AndroidScheduler(context),
-        alarmRepo = AlarmsRepository(alarmSettings(context)),
-        alarmScheduler = AndroidAlarmScheduler(context),
         versionLabel = versionLabel(versionName, context.packageName),
         activityLauncher = AndroidActivitySessionLauncher(context),
         activityStore = AndroidActivityTrackStore(context),
