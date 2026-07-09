@@ -19,10 +19,3 @@ fun appSettings(context: Context): Settings {
  */
 fun timerSettings(context: Context): Settings =
     SharedPreferencesSettings(context.applicationContext.getSharedPreferences("timer_sets", Context.MODE_PRIVATE))
-
-/**
- * [Settings] backed by the dedicated alarms SharedPreferences file. The file name must stay
- * `"alarms"` forever — existing users' saved alarms live there.
- */
-fun alarmSettings(context: Context): Settings =
-    SharedPreferencesSettings(context.applicationContext.getSharedPreferences("alarms", Context.MODE_PRIVATE))

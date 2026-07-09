@@ -38,7 +38,6 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
 import com.blizzardcaron.freeolleefaces.activity.AndroidInstrumentsProvider
-import com.blizzardcaron.freeolleefaces.auto.AlarmRearm
 import com.blizzardcaron.freeolleefaces.auto.AndroidScheduler
 import com.blizzardcaron.freeolleefaces.ble.AndroidBleClient
 import com.blizzardcaron.freeolleefaces.ble.AndroidWatchConnection
@@ -138,12 +137,6 @@ private fun AppEffects(
 ) {
     LaunchedEffect(Unit) {
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
-    }
-
-    // Alarm BLE pushes run detached from the ViewModel (debounced in AlarmRearm, also fired by
-    // receivers) — confirm their outcomes through the same snackbar.
-    LaunchedEffect(Unit) {
-        AlarmRearm.pushResults.collect { snackbarHostState.showSnackbar(it) }
     }
 
     LaunchedEffect(Unit) {
