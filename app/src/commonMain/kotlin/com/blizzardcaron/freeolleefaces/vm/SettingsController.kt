@@ -14,7 +14,7 @@ import kotlinx.datetime.Clock
  * update-interval/sleep-window/auto-sleep setters and the lat/lng coordinate editor. Moved
  * verbatim; the only renames are `viewModelScope` -> `scope`, `state.X` -> `state().X`,
  * `state = transform(state)` -> `update { transform(it) }`, `nowMs()` -> the injected [clock]
- * (matching the [AlarmController]/[TimerController]/[ComplicationController] precedent), and the
+ * (matching the [TimerController]/[ComplicationController] precedent), and the
  * two cross-cluster calls into [ComplicationController] (`complications.tempNextText()` /
  * `complications.refreshActive(false, false)`) -> the injected [tempNextText]/[refreshActive]
  * lambdas, so this controller carries no hard dependency on [ComplicationController].

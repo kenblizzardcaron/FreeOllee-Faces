@@ -42,7 +42,7 @@ import kotlinx.datetime.toLocalDateTime
  * weather/temperature previews, steps, notifications, custom text, and the active-complication
  * refresh/activate path. Moved verbatim; the only renames are `viewModelScope` -> `scope`,
  * `state.X` -> `state().X`, `state = transform(state)` -> `update { transform(it) }`, and
- * `Clock.System` -> the injected [clock] (matching the [vm.AlarmController]/[vm.TimerController]
+ * `Clock.System` -> the injected [clock] (matching the [vm.TimerController]
  * precedent). The
  * `scheduler` dependency (used only by [activate]) is injected here since [activate] is the only
  * complication-cluster method that calls `scheduler.reschedule()` — the VM's other 6 call sites
