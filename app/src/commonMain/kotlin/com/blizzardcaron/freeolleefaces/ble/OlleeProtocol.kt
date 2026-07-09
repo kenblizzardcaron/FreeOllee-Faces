@@ -8,8 +8,6 @@ object OlleeProtocol {
     const val MAX_VALUE_LENGTH = 6
 
     /** Single-byte / ASCII bounds shared by several `require` guards below. */
-    private const val MAX_HOUR = 23
-    private const val MAX_MINUTE = 59
     private const val ASCII_MAX = 127
 
     /** Minimum length (bytes) of a parseable frame: 00, len, AA, 55, crcHi, crcLo, cmd, target. */
@@ -74,11 +72,7 @@ object OlleeProtocol {
         }
     }
 
-    /** Alarm-face record — write target. Ack at 0x45; the chime preview shares this format. */
-    const val TARGET_ALARM = 0x25
-
     /** Read-request targets and the reply-target shift (`02 <t>` → reply target `t + 0x20`). */
-    const val TARGET_GET_ALARM = 0x2B
     const val TARGET_GET_TIMER = 0x2C
     const val RESPONSE_TARGET_OFFSET = 0x20
 
@@ -276,61 +270,6 @@ object OlleeProtocol {
             payload[off + 3] = ((s shr 24) and 0xFF).toByte()
         }
         return buildRawPacket(TARGET_TIMERS, payload)
-    }
-
-    /**
-     * Builds the alarm record (target 0x25). The watch stores one alarm — [hour] (0..23),
-     * [minute] (0..59), and a [chimeIndex] tone selector (0x00 = Classic, 0x01 = Breeze,
-     * 0x02 = Westminster, …). Set [playNow] to sound the chosen chime immediately ("Try chime"):
-     * that is a transient preview the firmware does NOT persist (the play-now byte is absent from
-     * the alarm read-back at 0x2B), so it never disturbs the stored alarm. [enabled] is the
-     * alarm-on flag (byte 0).
-     *
-     * The record also carries the watch's **settings**, decoded 2026-06-11 by toggle-diffing the
-     * official app's alarm screen (one "Send to watch" writes the whole record):
-     *   [enable, hourlyChime, snoozeEnable, hour, minute, dayMask, chime, snoozeMin, playNow,
-     *    hourMaskLo, hourMaskMid, hourMaskHi, FF]
-     * - byte 1 [hourlyChime]: hourly-chime on/off. We default it ON — sending 0 here is how an
-     *   earlier build kept silently disabling the watch's hourly chime on every push.
-     * - byte 2: snooze enable; byte 7: snooze period in minutes (we keep the stock 5). Every push
-     *   deliberately forces snooze off: it is a property of the one alarm record this app fully
-     *   owns and re-writes (we have no snooze UI), and the captured official-app frames sent 00
-     *   here too.
-     * - byte 5: repeat-day mask, bit1=Mon..bit7=Sun, **1 = day active**, bit0 unused. We always
-     *   send 0xFE (every day): the phone computes the true next fire and re-arms/disarms after
-     *   each one. Sending 0x00 (NO active days) makes the watch show its Alarm setting as off and
-     *   stay silent at the stored time — verified on hardware 2026-06-11, twice.
-     * - bytes 9-11: 24-bit little-endian active-hours mask for the hourly chime; C0 FF 0F =
-     *   bits 6-19 = 6:00-19:00, the stock range we preserve.
-     * The final FF is a constant terminator (payload byte 12). The watch's 20-byte ATT payload
-     * fragments the resulting 21-byte frame into [20][FF] — exactly how the official app sends it,
-     * and how [BleClient] chunks it.
-     */
-    fun buildAlarmPacket(
-        hour: Int,
-        minute: Int,
-        chimeIndex: Int,
-        playNow: Boolean,
-        enabled: Boolean = false,
-        hourlyChime: Boolean = true,
-    ): ByteArray {
-        require(hour in 0..MAX_HOUR) { "hour must be 0..$MAX_HOUR (got $hour)" }
-        require(minute in 0..MAX_MINUTE) { "minute must be 0..$MAX_MINUTE (got $minute)" }
-        require(chimeIndex in 0..0xFF) { "chimeIndex must be a single byte (got $chimeIndex)" }
-        val payload = byteArrayOf(
-            if (enabled) 0x01 else 0x00,
-            if (hourlyChime) 0x01 else 0x00,
-            0x00, // snooze off
-            hour.toByte(),
-            minute.toByte(),
-            0xFE.toByte(), // repeat every day — see KDoc; 0x00 would disable
-            chimeIndex.toByte(),
-            0x05, // snooze period (minutes), stock value
-            if (playNow) 0x01 else 0x00,
-            0xC0.toByte(), 0xFF.toByte(), 0x0F, // hourly-chime hours 6:00-19:00
-            0xFF.toByte(), // terminator
-        )
-        return buildRawPacket(TARGET_ALARM, payload)
     }
 
     /** °F string matching the watch's read format ("  54 F"): right-justified to 6 chars. */
