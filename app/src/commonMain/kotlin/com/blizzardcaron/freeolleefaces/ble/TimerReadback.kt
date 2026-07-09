@@ -6,7 +6,7 @@ package com.blizzardcaron.freeolleefaces.ble
  * confirmation — see [TimerConfirm]); a false return is the caller's signal to surface a "not
  * confirmed" warning.
  *
- * Unlike the alarm path, this does **not** auto-heal by re-sending. A `START_SINGLE`/`START_INTERVAL`
+ * This does **not** auto-heal by re-sending. A `START_SINGLE`/`START_INTERVAL`
  * push already started a countdown on the watch; re-sending it would restart a likely-running timer
  * on a false-negative read. For a partial, advisory confirmation the right behaviour is to report,
  * not to disrupt the running timer — the user re-sends if they choose.

@@ -15,9 +15,7 @@ import com.blizzardcaron.freeolleefaces.activity.InstrumentsProvider
 import com.blizzardcaron.freeolleefaces.activity.NoopActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.NoopActivityTrackStore
 import com.blizzardcaron.freeolleefaces.activity.NoopInstrumentsProvider
-import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
 import com.blizzardcaron.freeolleefaces.auto.ActiveComplication
-import com.blizzardcaron.freeolleefaces.auto.AlarmScheduler
 import com.blizzardcaron.freeolleefaces.auto.AutoSleepReconciler
 import com.blizzardcaron.freeolleefaces.auto.Scheduler
 import com.blizzardcaron.freeolleefaces.ble.AutoSleepApply
@@ -41,7 +39,6 @@ import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.PreviewState
 import com.blizzardcaron.freeolleefaces.ui.Screen
 import com.blizzardcaron.freeolleefaces.vm.ActivityController
-import com.blizzardcaron.freeolleefaces.vm.AlarmController
 import com.blizzardcaron.freeolleefaces.vm.ComplicationController
 import com.blizzardcaron.freeolleefaces.vm.SettingsController
 import com.blizzardcaron.freeolleefaces.vm.TimerController
@@ -62,7 +59,7 @@ private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 private const val MINUTES_PER_HOUR = 60
 
-// 18 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
+// 16 injected dependencies, defaulted for tests where a noop exists — standard constructor DI; bundling them
 // into a holder type would only obscure the wiring and worsen test ergonomics
 @Suppress("LongParameterList")
 class AppViewModel(
@@ -74,8 +71,6 @@ class AppViewModel(
     private val timerRepo: TimerSetsRepository,
     private val metricsRepo: ActivityMetricsRepository,
     private val scheduler: Scheduler,
-    private val alarmRepo: AlarmsRepository,
-    private val alarmScheduler: AlarmScheduler,
     private val versionLabel: String = "",
     private val watchConnection: WatchConnection = NoopWatchConnection,
     private val ringSteps: RingStepsSource = NoopRingStepsSource,
@@ -97,12 +92,6 @@ class AppViewModel(
     /** Bumped on delete so the history list recomposes off the file-backed store. */
     var historyRevision by mutableStateOf(0)
         private set
-
-    val alarms = AlarmController(
-        alarmRepo = alarmRepo,
-        alarmScheduler = alarmScheduler,
-        clock = clock,
-    )
 
     val timers = TimerController(
         timerRepo = timerRepo,
@@ -245,7 +234,6 @@ class AppViewModel(
     /** Initial re-arm of the auto-update chain; called once from a LaunchedEffect on start. */
     fun onStart() {
         scheduler.reschedule()
-        alarmScheduler.rearm()
         pruneOldActivities()
     }
 

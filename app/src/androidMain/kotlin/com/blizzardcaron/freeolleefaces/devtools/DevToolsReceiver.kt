@@ -31,10 +31,6 @@ import kotlinx.coroutines.launch
  *   # target + payload hex — CRC/LEN computed here via buildRawPacket:
  *   adb shell am broadcast -a com.blizzardcaron.freeolleefaces.DEV_SEND \
  *       -f 0x01000000 --es target 25 --es payload 0000000D1E00050501C0FF0FFF
- *
- *   # the decoded alarm/chime record (hour/min/chime decimal, play/enabled 0|1):
- *   adb shell am broadcast -a com.blizzardcaron.freeolleefaces.DEV_SEND \
- *       -f 0x01000000 --ei hour 13 --ei minute 30 --ei chime 5 --ei play 1
  */
 class DevToolsReceiver : BroadcastReceiver() {
 
@@ -64,7 +60,7 @@ class DevToolsReceiver : BroadcastReceiver() {
             return
         }
         if (packet == null) {
-            Log.w(TAG, "nothing to send — provide --es frame, --es payload, or --ei hour/minute")
+            Log.w(TAG, "nothing to send — provide --es frame or --es payload")
             return
         }
 
@@ -96,15 +92,6 @@ class DevToolsReceiver : BroadcastReceiver() {
             val target = (intent.getStringExtra("target") ?: "25").toInt(HEX_RADIX)
             OlleeProtocol.buildRawPacket(target, intent.getStringExtra("payload")!!.hexToBytes())
         }
-
-        intent.hasExtra("hour") ->
-            OlleeProtocol.buildAlarmPacket(
-                hour = intent.getIntExtra("hour", 0),
-                minute = intent.getIntExtra("minute", 0),
-                chimeIndex = intent.getIntExtra("chime", 0),
-                playNow = intent.getIntExtra("play", 1) != 0,
-                enabled = intent.getIntExtra("enabled", 0) != 0,
-            )
 
         else -> null
     }

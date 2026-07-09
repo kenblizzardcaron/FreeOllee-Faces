@@ -11,7 +11,6 @@ enum class FailureKind(val retryable: Boolean) {
     WEATHER_FETCH_FAILED(retryable = true),
     SETUP_INCOMPLETE(retryable = false),
     HEALTH_UNAVAILABLE(retryable = false),
-    ALARM_UNREACHABLE(retryable = true),
 }
 
 /** What to do with the single error notification after one worker outcome. */

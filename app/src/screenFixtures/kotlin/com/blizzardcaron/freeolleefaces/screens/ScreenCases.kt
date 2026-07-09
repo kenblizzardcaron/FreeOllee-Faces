@@ -10,7 +10,6 @@ import com.blizzardcaron.freeolleefaces.ui.ActivityDetailScreen
 import com.blizzardcaron.freeolleefaces.ui.ActivityHistoryScreen
 import com.blizzardcaron.freeolleefaces.ui.ActivityMetricsConfigScreen
 import com.blizzardcaron.freeolleefaces.ui.ActivityScreen
-import com.blizzardcaron.freeolleefaces.ui.AlarmsScreen
 import com.blizzardcaron.freeolleefaces.ui.HomeScreen
 import com.blizzardcaron.freeolleefaces.ui.Screen
 import com.blizzardcaron.freeolleefaces.ui.SettingsScreen
@@ -24,7 +23,6 @@ fun Screen.slug(): String = when (this) {
     Screen.Settings -> "settings"
     Screen.TimerSets -> "timers"
     Screen.TimerSetEdit -> "timer-edit"
-    Screen.Alarms -> "alarms"
     Screen.Activity -> "activity"
     Screen.ActivityHistory -> "activity-history"
     Screen.ActivityDetail -> "activity-detail"
@@ -81,16 +79,6 @@ private fun screenContent(screen: Screen): @Composable () -> Unit = when (screen
             )
         }
     }
-    Screen.Alarms -> {
-        {
-            AlarmsScreen(
-                alarms = ScreenFakes.alarms,
-                nextSummary = "Next: 7:00 AM",
-                callbacks = ScreenFakes.alarmsCallbacks,
-                connectionStatus = ConnectionStatus.Connected,
-            )
-        }
-    }
     Screen.Activity -> {
         {
             ActivityScreen(
@@ -135,7 +123,6 @@ val allScreens: List<Screen> = listOf(
     Screen.Settings,
     Screen.TimerSets,
     Screen.TimerSetEdit,
-    Screen.Alarms,
     Screen.Activity,
     Screen.ActivityHistory,
     Screen.ActivityDetail,

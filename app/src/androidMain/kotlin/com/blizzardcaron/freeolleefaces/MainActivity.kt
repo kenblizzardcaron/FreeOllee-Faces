@@ -38,9 +38,6 @@ import com.blizzardcaron.freeolleefaces.activity.ActivityMetricsRepository
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivitySessionLauncher
 import com.blizzardcaron.freeolleefaces.activity.AndroidActivityTrackStore
 import com.blizzardcaron.freeolleefaces.activity.AndroidInstrumentsProvider
-import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
-import com.blizzardcaron.freeolleefaces.auto.AlarmRearm
-import com.blizzardcaron.freeolleefaces.auto.AndroidAlarmScheduler
 import com.blizzardcaron.freeolleefaces.auto.AndroidScheduler
 import com.blizzardcaron.freeolleefaces.ble.AndroidBleClient
 import com.blizzardcaron.freeolleefaces.ble.AndroidWatchConnection
@@ -48,14 +45,11 @@ import com.blizzardcaron.freeolleefaces.health.AndroidStepsProvider
 import com.blizzardcaron.freeolleefaces.location.AndroidLocationProvider
 import com.blizzardcaron.freeolleefaces.notifications.AndroidNotificationAccess
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
-import com.blizzardcaron.freeolleefaces.prefs.alarmSettings
 import com.blizzardcaron.freeolleefaces.prefs.appSettings
 import com.blizzardcaron.freeolleefaces.prefs.timerSettings
 import com.blizzardcaron.freeolleefaces.ring.AndroidRingStepsSource
 import com.blizzardcaron.freeolleefaces.ring.RingConnDiscovery
 import com.blizzardcaron.freeolleefaces.timer.TimerSetsRepository
-import com.blizzardcaron.freeolleefaces.ui.AlarmsCallbacks
-import com.blizzardcaron.freeolleefaces.ui.AlarmsScreen
 import com.blizzardcaron.freeolleefaces.ui.BondedDevice
 import com.blizzardcaron.freeolleefaces.ui.BondedDevicesDialog
 import com.blizzardcaron.freeolleefaces.ui.BottomNavTab
@@ -145,12 +139,6 @@ private fun AppEffects(
         viewModel.events.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    // Alarm BLE pushes run detached from the ViewModel (debounced in AlarmRearm, also fired by
-    // receivers) — confirm their outcomes through the same snackbar.
-    LaunchedEffect(Unit) {
-        AlarmRearm.pushResults.collect { snackbarHostState.showSnackbar(it) }
-    }
-
     LaunchedEffect(Unit) {
         runStartupLocation(viewModel, context)
     }
@@ -199,8 +187,6 @@ private fun createAppViewModel(context: Context): AppViewModel {
         timerRepo = TimerSetsRepository(timerSettings(context)),
         metricsRepo = ActivityMetricsRepository(appSettings(context)),
         scheduler = AndroidScheduler(context),
-        alarmRepo = AlarmsRepository(alarmSettings(context)),
-        alarmScheduler = AndroidAlarmScheduler(context),
         versionLabel = versionLabel(versionName, context.packageName),
         activityLauncher = AndroidActivitySessionLauncher(context),
         activityStore = AndroidActivityTrackStore(context),
@@ -330,7 +316,6 @@ private fun AppBottomBar(screen: Screen, viewModel: AppViewModel) {
                     selected = BottomNavTab.forScreen(screen) == tab,
                     onClick = {
                         when (tab) {
-                            BottomNavTab.Alarm -> viewModel.alarms.refreshAlarms()
                             BottomNavTab.Timer -> viewModel.timers.refreshTimers()
                             else -> {}
                         }
@@ -410,20 +395,6 @@ private fun AppContent(
             modifier = modifier,
         )
         Screen.TimerSets -> AppTimerSetsScreen(viewModel = viewModel, state = state, modifier = modifier)
-        Screen.Alarms -> AlarmsScreen(
-            alarms = viewModel.alarms.items,
-            nextSummary = viewModel.alarms.nextAlarmSummary,
-            callbacks = AlarmsCallbacks(
-                onAdd = { viewModel.alarms.addAlarm() },
-                onSave = { viewModel.alarms.saveAlarm(it) },
-                onToggle = { id, enabled -> viewModel.alarms.toggleAlarm(id, enabled) },
-                onDelete = { viewModel.alarms.deleteAlarm(it) },
-                onBack = { viewModel.navigateTo(Screen.Home) },
-                onReconnect = { viewModel.onReconnect() },
-            ),
-            connectionStatus = state.connectionStatus,
-            modifier = modifier,
-        )
         Screen.TimerSetEdit -> {
             val editing = viewModel.timers.editingSet
             if (editing == null) {

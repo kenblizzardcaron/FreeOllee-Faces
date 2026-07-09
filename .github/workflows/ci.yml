@@ -104,7 +104,7 @@ jobs:
         if: ${{ matrix.upload-screenshots && github.event_name == 'pull_request' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          file_pattern: docs/screenshots/home.png docs/screenshots/activity.png docs/screenshots/alarms.png
+          file_pattern: docs/screenshots/home.png docs/screenshots/activity.png
           commit_message: "docs(readme): auto-refresh screenshots [skip ci]"
       # The auto-commit above is pushed with GITHUB_TOKEN, which by design does NOT trigger new
       # workflow runs. That leaves the new PR-head commit with no version-check run — and

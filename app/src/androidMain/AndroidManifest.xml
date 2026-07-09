@@ -14,10 +14,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <!-- Exact alarm for the post-fire re-arm trigger: SCHEDULE_EXACT_ALARM is default-granted
-         (but revocable) on API 31-32; USE_EXACT_ALARM replaces it un-revocably on API 33+. -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- Health Connect: read step data (incl. while backgrounded for the worker). -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -71,19 +67,9 @@
             </intent-filter>
         </receiver>
 
-        <!-- Re-runs the alarm re-arm pass after each computed watch-alarm fire. -->
-        <receiver
-            android:name=".auto.AlarmRearmReceiver"
-            android:exported="false" />
-
         <!-- Backs the error notification's "Retry" action. -->
         <receiver
             android:name=".notify.RetryReceiver"
-            android:exported="false" />
-
-        <!-- Backs the alarm-failure notification's "Retry" action. -->
-        <receiver
-            android:name=".notify.AlarmRetryReceiver"
             android:exported="false" />
 
         <!-- Developer BLE bench tool (adb-driven raw-frame sender). Exported so `adb shell am

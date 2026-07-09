@@ -30,8 +30,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import com.blizzardcaron.freeolleefaces.alarm.AlarmsRepository
-import com.blizzardcaron.freeolleefaces.fakes.FakeAlarmScheduler
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -105,8 +103,6 @@ class AppViewModelTest {
         timerRepo = TimerSetsRepository(MapSettings()),
         metricsRepo = ActivityMetricsRepository(MapSettings()),
         scheduler = FakeScheduler(callLog),
-        alarmRepo = AlarmsRepository(MapSettings()),
-        alarmScheduler = FakeAlarmScheduler(callLog),
         watchConnection = fake,
         activityStore = activityStore,
         clock = clock,
