@@ -247,6 +247,11 @@ private fun NotificationsExpandedContent(
             modifier = Modifier.semantics { contentDescription = "Show count in weekday slot" },
         )
     }
+    Text(
+        "To save battery, the count is sent at most once a minute, so it can briefly " +
+            "trail the notification shade.",
+        style = MaterialTheme.typography.bodySmall,
+    )
     if (state.notificationsEnabled && !state.notificationAccessGranted) {
         Text("Notification access needed", style = MaterialTheme.typography.titleSmall)
         Button(onClick = onGrantAccess, modifier = Modifier.fillMaxWidth()) {
