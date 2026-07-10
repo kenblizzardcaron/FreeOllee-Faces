@@ -100,6 +100,13 @@ private fun ColumnScope.ComplicationCardsList(
             onUpdateNow = callbacks.onNotificationsUpdateNow,
         )
 
+        WorldTimeCard(
+            state = state,
+            callbacks = callbacks,
+            expanded = expanded == ComplicationCardId.WORLD_TIME,
+            onToggle = { onToggle(ComplicationCardId.WORLD_TIME) },
+        )
+
         SectionLabel("Name tag")
 
         TemperatureCard(

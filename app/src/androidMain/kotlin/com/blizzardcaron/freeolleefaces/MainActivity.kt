@@ -149,6 +149,8 @@ private fun AppEffects(
         if (screen == Screen.Home) {
             while (true) {
                 viewModel.complications.refreshAllPreviews()
+                viewModel.worldTime.refreshPreviews()
+                viewModel.worldTime.reconcileOnOpen()
                 delay(DASHBOARD_POLL_INTERVAL_MS)
             }
         }
@@ -237,6 +239,10 @@ private fun rememberAppCallbacks(
         onToggleNotifications = { viewModel.complications.setNotificationsEnabled(it) },
         onNotificationsUpdateNow = { viewModel.complications.pushCountIfWatch() },
         onReconnect = { viewModel.onReconnect() },
+        onWorldTimeActivate = viewModel.worldTime::activate,
+        onWorldTimeAddSlot = viewModel.worldTime::addSlot,
+        onWorldTimeRemoveSlot = viewModel.worldTime::removeSlot,
+        onWorldTimeRefresh = viewModel.worldTime::refreshPreviews,
     )
     val settingsCallbacks = SettingsCallbacks(
         onBack = { viewModel.navigateTo(Screen.Home) },

@@ -19,6 +19,10 @@ data class HomeCallbacks(
     val onToggleNotifications: (Boolean) -> Unit,
     val onNotificationsUpdateNow: () -> Unit,
     val onReconnect: () -> Unit = {},
+    val onWorldTimeActivate: (String) -> Unit = {},
+    val onWorldTimeAddSlot: (String) -> Unit = {},
+    val onWorldTimeRemoveSlot: (String) -> Unit = {},
+    val onWorldTimeRefresh: () -> Unit = {},
 )
 
 data class SettingsCallbacks(
