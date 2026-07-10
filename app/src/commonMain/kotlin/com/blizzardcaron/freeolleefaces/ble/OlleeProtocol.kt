@@ -40,6 +40,7 @@ object OlleeProtocol {
     // app writes it at 0x34 behind a 4-byte 00 00 7E 90 prefix. Foundation for a future custom
     // 2-char always-on label; no UI/face uses it yet.
     const val TARGET_WEEKDAYS = 0x34
+    const val TARGET_GET_WEEKDAYS = 0x35
 
     /** Timer-face slots (10 countdown durations) — write target. Ack at 0x46. */
     const val TARGET_TIMERS = 0x26
