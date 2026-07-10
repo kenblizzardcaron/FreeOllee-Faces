@@ -23,6 +23,8 @@ import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import com.blizzardcaron.freeolleefaces.weather.WeatherFetchError
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -105,8 +107,10 @@ class AutoUpdateWorker(
     private suspend fun maybePushNotificationCount(ctx: Context, prefs: Prefs, address: String?) {
         if (!prefs.notificationsEnabled || address == null || inSleepNow(prefs)) return
         val count = if (AndroidNotificationAccess(ctx).isGranted()) prefs.notificationCount else 0
+        val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
         runCatching {
-            AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count))
+            AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
+                .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.blizzardcaron.freeolleefaces.ble
 
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -8,6 +9,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class OlleeProtocolTest {
+
+    // Encodes to the 2026-05-31 capture constant `00 00 7E 90` (+9:00 = 32,400 s); reused below
+    // so the pre-existing byte-level assertions still exercise the exact captured bytes.
+    private val captureHeader = WorldTimeCodec.encode(32_400)
 
     // CRC-16/CCITT-FALSE reference vector: ASCII "123456789" -> 0x29B1
     @Test
@@ -158,14 +163,14 @@ class OlleeProtocolTest {
     @Test
     fun `buildWeekdayPacket from the standard abbreviations matches the captured frame`() {
         val packet = OlleeProtocol.buildWeekdayPacket(
-            listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU")
+            listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU"), captureHeader,
         )
         assertContentEquals(hex("0018AA557EAB023400007E904D4F545557455448465253415355"), packet)
     }
 
     @Test
     fun `buildWeekdayPacket with all TE slots produces a valid frame the watch will accept`() {
-        val packet = OlleeProtocol.buildWeekdayPacket(List(7) { "TE" })
+        val packet = OlleeProtocol.buildWeekdayPacket(List(7) { "TE" }, captureHeader)
         val f = OlleeProtocol.parseFrame(packet)!!
         assertEquals(0x34, f.target)
         assertTrue(f.crcOk)
@@ -175,21 +180,21 @@ class OlleeProtocolTest {
     @Test
     fun `buildWeekdayPacket rejects a table that is not 7 slots`() {
         assertFailsWith<IllegalArgumentException> {
-            OlleeProtocol.buildWeekdayPacket(listOf("MO", "TU"))
+            OlleeProtocol.buildWeekdayPacket(listOf("MO", "TU"), captureHeader)
         }
     }
 
     @Test
     fun `buildWeekdayPacket rejects a slot that is not exactly 2 chars`() {
         assertFailsWith<IllegalArgumentException> {
-            OlleeProtocol.buildWeekdayPacket(List(7) { "X" })
+            OlleeProtocol.buildWeekdayPacket(List(7) { "X" }, captureHeader)
         }
     }
 
     @Test
     fun `buildWeekdayPacket rejects a non-ASCII slot`() {
         assertFailsWith<IllegalArgumentException> {
-            OlleeProtocol.buildWeekdayPacket(List(7) { "é2" }) // length 2 but non-ASCII
+            OlleeProtocol.buildWeekdayPacket(List(7) { "é2" }, captureHeader) // length 2 but non-ASCII
         }
     }
 
@@ -197,6 +202,23 @@ class OlleeProtocolTest {
     fun `buildRawPacket rejects a target outside one byte`() {
         assertFailsWith<IllegalArgumentException> {
             OlleeProtocol.buildRawPacket(0x123, byteArrayOf(0x00))
+        }
+    }
+
+    @Test
+    fun weekdayPacketCarriesExplicitHeader() {
+        val header = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xAB.toByte(), 0xA0.toByte())
+        val packet = OlleeProtocol.buildWeekdayPacket(
+            listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU"), header,
+        )
+        // payload starts after the 8-byte frame preamble (00 LEN AA 55 CRC CRC 02 34)
+        assertContentEquals(header, packet.copyOfRange(8, 12))
+    }
+
+    @Test
+    fun weekdayPacketRejectsWrongSizeHeader() {
+        assertFailsWith<IllegalArgumentException> {
+            OlleeProtocol.buildWeekdayPacket(List(7) { "MO" }, ByteArray(3))
         }
     }
 

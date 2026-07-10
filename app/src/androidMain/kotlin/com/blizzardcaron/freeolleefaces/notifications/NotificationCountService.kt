@@ -7,6 +7,8 @@ import android.service.notification.StatusBarNotification
 import com.blizzardcaron.freeolleefaces.ble.AndroidBleClient
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.prefs.appSettings
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -87,8 +89,10 @@ class NotificationCountService : NotificationListenerService() {
             )
             if (!prefs.notificationsEnabled) return@launch
             val addr = prefs.watchAddress ?: return@launch
+            val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
             AndroidBleClient(applicationContext)
-                .sendPacket(addr, NotificationCount.packetFor(prefs.notificationCount))
+                .sendPacket(addr, NotificationCount.packetFor(prefs.notificationCount, header))
+                .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
             // Stamped even if the send failed: the attempt already woke the radio, and pacing
             // failures avoids hammering an out-of-range watch. The worker backstop re-asserts.
             lastPushMs = SystemClock.elapsedRealtime()

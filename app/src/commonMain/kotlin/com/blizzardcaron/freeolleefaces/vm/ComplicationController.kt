@@ -29,6 +29,8 @@ import com.blizzardcaron.freeolleefaces.ui.PreviewState
 import com.blizzardcaron.freeolleefaces.ui.refreshing
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -97,10 +99,14 @@ class ComplicationController(
 
     fun pushCountIfWatch() {
         val addr = prefs.watchAddress ?: return
-        val packet = NotificationCount.packetFor(prefs.notificationCount)
+        val header = WorldTimeHeader.fromPrefs(prefs, nowMs())
+        val packet = NotificationCount.packetFor(prefs.notificationCount, header)
         scope.launch {
             ble.sendPacket(addr, packet)
-                .onSuccess { showSnackbar("Sent notifications: ${prefs.notificationCount}") }
+                .onSuccess {
+                    prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header)
+                    showSnackbar("Sent notifications: ${prefs.notificationCount}")
+                }
                 .onFailure { showSnackbar("Send failed — long-press ALARM to wake the watch, then retry") }
         }
     }
@@ -469,13 +475,15 @@ class ComplicationController(
         prefs.notificationsEnabled = enabled
         update { it.copy(notificationsEnabled = enabled) }
         val addr = prefs.watchAddress ?: return
+        val header = WorldTimeHeader.fromPrefs(prefs, nowMs())
         val packet = if (enabled) {
-            NotificationCount.packetFor(prefs.notificationCount)
+            NotificationCount.packetFor(prefs.notificationCount, header)
         } else {
-            NotificationCount.packetFor(0) // restores the real weekday table
+            NotificationCount.packetFor(0, header) // restores the real weekday table
         }
         scope.launch {
             ble.sendPacket(addr, packet)
+                .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
                 .onFailure { showSnackbar("Send failed — long-press ALARM to wake the watch, then retry") }
         }
     }
