@@ -6,6 +6,7 @@ import com.blizzardcaron.freeolleefaces.auto.SleepWindow
 import com.blizzardcaron.freeolleefaces.format.BatteryReadout
 import com.blizzardcaron.freeolleefaces.format.TempUnit
 import com.blizzardcaron.freeolleefaces.notify.FailureKind
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeState
 import com.russhwolf.settings.Settings
 import kotlinx.datetime.Clock
 
@@ -228,6 +229,69 @@ class Prefs(
     var notificationCount: Int
         get() = settings.getInt(KEY_NOTIFICATION_COUNT, 0)
         set(value) = settings.putInt(KEY_NOTIFICATION_COUNT, value)
+
+    /** World Time slots: IANA zone ids, comma-joined, display order (max WorldTime.MAX_SLOTS). */
+    var worldTimeSlots: List<String>
+        get() = settings.getStringOrNull(KEY_WT_SLOTS)?.split(',')?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = settings.putString(KEY_WT_SLOTS, value.joinToString(","))
+
+    /** The slot zone currently pushed to the watch's World Time face; null = custom/unset. */
+    var worldTimeActiveZone: String?
+        get() = settings.getStringOrNull(KEY_WT_ACTIVE)
+        set(value) = if (value == null) settings.remove(KEY_WT_ACTIVE) else settings.putString(KEY_WT_ACTIVE, value)
+
+    /** An on-watch offset adopted at reconcile that matched no slot (seconds east of UTC). */
+    var worldTimeCustomOffsetSec: Int?
+        get() =
+            if (settings.hasKey(KEY_WT_CUSTOM_SEC)) {
+                settings.getInt(KEY_WT_CUSTOM_SEC, 0)
+            } else {
+                null
+            }
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_WT_CUSTOM_SEC)
+            } else {
+                settings.putInt(KEY_WT_CUSTOM_SEC, value)
+            }
+        }
+
+    /** Whether the Casio home<->world swap is in effect. */
+    var worldTimeSwapped: Boolean
+        get() = settings.getBoolean(KEY_WT_SWAPPED, false)
+        set(value) = settings.putBoolean(KEY_WT_SWAPPED, value)
+
+    /** The last world-offset (seconds) successfully written in a weekday-register push. */
+    var worldTimeLastPushedOffsetSec: Int?
+        get() =
+            if (settings.hasKey(KEY_WT_LAST_PUSHED_SEC)) {
+                settings.getInt(KEY_WT_LAST_PUSHED_SEC, 0)
+            } else {
+                null
+            }
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_WT_LAST_PUSHED_SEC)
+            } else {
+                settings.putInt(KEY_WT_LAST_PUSHED_SEC, value)
+            }
+        }
+
+    /** The persisted [WorldTimeState] snapshot. */
+    fun worldTimeState(): WorldTimeState = WorldTimeState(
+        slots = worldTimeSlots,
+        activeZoneId = worldTimeActiveZone,
+        customOffsetSec = worldTimeCustomOffsetSec,
+        swapped = worldTimeSwapped,
+    )
+
+    /** Persists every field of [s] (slots, active zone, custom offset, swap flag). */
+    fun saveWorldTimeState(s: WorldTimeState) {
+        worldTimeSlots = s.slots
+        worldTimeActiveZone = s.activeZoneId
+        worldTimeCustomOffsetSec = s.customOffsetSec
+        worldTimeSwapped = s.swapped
+    }
 
     /** Stamp the cached temperature value, the unit it was fetched in, and the fetch time. */
     fun recordTempFetch(value: Double, unit: TempUnit) {
@@ -492,5 +556,10 @@ class Prefs(
         const val DEFAULT_PUSH_INTERVAL_MS = 30_000L
         const val DEFAULT_AUTO_PAUSE_MPS = 0.1f
         val PUSH_INTERVAL_PRESETS_MS = listOf(3_000L, 15_000L, 30_000L, 60_000L, 300_000L)
+        private const val KEY_WT_SLOTS = "world_time_slots"
+        private const val KEY_WT_ACTIVE = "world_time_active_zone"
+        private const val KEY_WT_CUSTOM_SEC = "world_time_custom_offset_sec"
+        private const val KEY_WT_SWAPPED = "world_time_swapped"
+        private const val KEY_WT_LAST_PUSHED_SEC = "world_time_last_pushed_offset_sec"
     }
 }
