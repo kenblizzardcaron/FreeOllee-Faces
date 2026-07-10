@@ -56,10 +56,20 @@ object WorldTime {
     }
 
     /**
+     * True once the user (or a reconcile adoption) has given the app a world-time value of its
+     * own — the precondition for background maintenance writes. While false and nothing has ever
+     * been pushed, the watch's register is an unknown user-set value that must not be overwritten
+     * with the home-offset fallback (issue #34's harm, resurfaced via maintenance).
+     */
+    fun isConfigured(state: WorldTimeState): Boolean =
+        state.activeZoneId != null || state.customOffsetSec != null || state.swapped || state.slots.isNotEmpty()
+
+    /**
      * Adopts an on-watch offset that differs from our expectation (call only on mismatch): the
      * slot matching [watchOffsetSec] right now becomes active, otherwise the offset is kept as
      * custom. Either way `swapped` clears — a mismatch means the watch no longer reflects our
-     * swap. The app never fights the user's on-watch change at reconcile time.
+     * swap. The app never fights the user's on-watch change at reconcile time. When two slots
+     * currently share the same offset, the first slot in list order wins.
      */
     fun reconcile(state: WorldTimeState, watchOffsetSec: Int, nowMs: Long): WorldTimeState {
         val match = state.slots.firstOrNull { offsetSecondsOf(it, nowMs) == watchOffsetSec }

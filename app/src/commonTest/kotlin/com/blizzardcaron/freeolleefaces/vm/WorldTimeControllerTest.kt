@@ -7,6 +7,7 @@ import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -140,5 +141,48 @@ class WorldTimeControllerTest {
         testScheduler.advanceUntilIdle()
         assertEquals("Asia/Tokyo", prefs.worldTimeActiveZone)
         assertTrue(ble.sentPackets.isEmpty()) // reconcile never writes
+    }
+
+    @Test
+    fun reconcileOnOpenSkipsWhileActivatePushInFlight() = runTest(testScheduler) {
+        val callLog = mutableListOf<String>()
+        val gate = CompletableDeferred<Unit>()
+        val localBle = FakeBleClient(callLog, gate = gate)
+        // If reconcile were allowed to run, the watch would report Berlin's offset — proof that
+        // adopting it here would revert the Tokyo tap below.
+        localBle.awaitResult = Result.success(weekdayReplyFrame(WorldTimeCodec.encode(2 * 3600)))
+        val localPrefs = Prefs(MapSettings()).apply {
+            watchAddress = "AA:BB"
+            worldTimeSlots = listOf("Asia/Tokyo", "Europe/Berlin")
+        }
+        val c = WorldTimeController(
+            prefs = localPrefs,
+            ble = localBle,
+            scope = this,
+            showSnackbar = {},
+            state = { state },
+            update = { t -> state = t(state) },
+            clock = FixedClock(julyMs),
+            homeZoneId = { "America/Denver" },
+        )
+
+        // Tap Tokyo: pushHeader sets the in-flight flag synchronously, then the launched
+        // coroutine suspends at the gate before it ever reaches the BLE fake's send.
+        c.activate("Asia/Tokyo")
+
+        // ON_START fires while that push is still in flight: must be a no-op.
+        c.reconcileOnOpen()
+        testScheduler.runCurrent()
+        assertTrue(callLog.none { it.startsWith("ble.sendAndAwait") },
+            "reconcile must not read the watch while a push is in flight: $callLog")
+
+        // Release the gate so the in-flight push completes.
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        // The tapped zone must still be active — reconcile never got a chance to revert it.
+        assertEquals("Asia/Tokyo", localPrefs.worldTimeActiveZone)
+        val sendPacketCalls = callLog.filter { it.startsWith("ble.sendPacket") }
+        assertEquals(1, sendPacketCalls.size, "only the activate push should have written: $callLog")
     }
 }

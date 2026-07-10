@@ -69,6 +69,15 @@ class WorldTimeTest {
     }
 
     @Test
+    fun isConfiguredRequiresAnExplicitUserOrReconcileValue() {
+        assertEquals(false, WorldTime.isConfigured(WorldTimeState()))
+        assertEquals(true, WorldTime.isConfigured(WorldTimeState(activeZoneId = "Asia/Tokyo")))
+        assertEquals(true, WorldTime.isConfigured(WorldTimeState(customOffsetSec = 3 * 3600)))
+        assertEquals(true, WorldTime.isConfigured(WorldTimeState(slots = listOf("Asia/Tokyo"))))
+        assertEquals(true, WorldTime.isConfigured(WorldTimeState(swapped = true)))
+    }
+
+    @Test
     fun labels() {
         assertEquals("Denver", WorldTime.cityOf("America/Denver"))
         assertEquals("New York", WorldTime.cityOf("America/New_York"))

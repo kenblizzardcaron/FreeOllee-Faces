@@ -35,6 +35,9 @@ class WorldTimeController(
 ) {
     private fun nowMs(): Long = clock.now().toEpochMilliseconds()
 
+    /** True while a [pushHeader] BLE write is in flight — set/cleared only there. */
+    private var pushInFlight = false
+
     fun addSlot(zoneId: String) {
         val slots = prefs.worldTimeSlots
         if (slots.size >= WorldTime.MAX_SLOTS || zoneId in slots) return
@@ -60,6 +63,9 @@ class WorldTimeController(
 
     /** Best-effort adopt of an on-watch change at app open; silent on read failure. */
     fun reconcileOnOpen() {
+        // A push we just initiated hasn't landed yet — reconciling now would adopt the watch's
+        // stale zone and revert the user's tap.
+        if (pushInFlight) return
         val addr = prefs.watchAddress ?: return
         scope.launch {
             val watchSec = WorldTimeReadback.read(ble, addr) ?: return@launch
@@ -98,13 +104,18 @@ class WorldTimeController(
         val addr = prefs.watchAddress ?: return
         val header = WorldTimeHeader.fromPrefs(prefs, nowMs(), homeZoneId())
         val count = if (prefs.notificationsEnabled) prefs.notificationCount else 0
+        pushInFlight = true
         scope.launch {
-            ble.sendPacket(addr, NotificationCount.packetFor(count, header))
-                .onSuccess {
-                    prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header)
-                    showSnackbar(successMessage)
-                }
-                .onFailure { showSnackbar("Send failed — long-press ALARM to wake the watch, then retry") }
+            try {
+                ble.sendPacket(addr, NotificationCount.packetFor(count, header))
+                    .onSuccess {
+                        prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header)
+                        showSnackbar(successMessage)
+                    }
+                    .onFailure { showSnackbar("Send failed — long-press ALARM to wake the watch, then retry") }
+            } finally {
+                pushInFlight = false
+            }
         }
     }
 }

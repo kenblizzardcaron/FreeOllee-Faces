@@ -23,6 +23,7 @@ import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import com.blizzardcaron.freeolleefaces.weather.WeatherFetchError
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTime
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
 import kotlinx.datetime.Clock
@@ -124,6 +125,10 @@ class AutoUpdateWorker(
      */
     private suspend fun maybeMaintainWorldTime(ctx: Context, prefs: Prefs, address: String?) {
         if (address == null || inSleepNow(prefs)) return
+        // Never seed the register from the home-offset fallback: until the user configures
+        // world time (or a reconcile adopts the on-watch value) and we've pushed a baseline,
+        // the on-watch zone is theirs, not ours (whole-branch review, issue #34 variant).
+        if (!WorldTime.isConfigured(prefs.worldTimeState()) && prefs.worldTimeLastPushedOffsetSec == null) return
         val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
         WorldTimeCodec.decode(header)?.takeIf { it != prefs.worldTimeLastPushedOffsetSec }?.let { sec ->
             val count = if (prefs.notificationsEnabled && AndroidNotificationAccess(ctx).isGranted()) {
