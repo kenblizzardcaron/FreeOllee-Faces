@@ -61,6 +61,7 @@ class AutoUpdateWorker(
         // whatever schedule the active face arms and never affects that face's success/scheduling.
         maybePushNotificationCount(ctx, prefs, address)
         maybeReconcileAutoSleep(ctx, prefs, address)
+        maybeMaintainWorldTime(ctx, prefs, address)
         val now = nowLocal()
 
         return when {
@@ -111,6 +112,29 @@ class AutoUpdateWorker(
         runCatching {
             AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
                 .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
+        }
+    }
+
+    /**
+     * Best-effort write-on-change keeper of the World Time offset across DST transitions.
+     * When the badge overlay is enabled, [maybePushNotificationCount] already re-stamps the
+     * header every run and this is a no-op via the lastPushed dedupe; it matters when the
+     * overlay is off (or access revoked), where nothing else would refresh the register.
+     * Fire-and-forget: never affects face scheduling or failure accounting.
+     */
+    private suspend fun maybeMaintainWorldTime(ctx: Context, prefs: Prefs, address: String?) {
+        if (address == null || inSleepNow(prefs)) return
+        val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
+        WorldTimeCodec.decode(header)?.takeIf { it != prefs.worldTimeLastPushedOffsetSec }?.let { sec ->
+            val count = if (prefs.notificationsEnabled && AndroidNotificationAccess(ctx).isGranted()) {
+                prefs.notificationCount
+            } else {
+                0
+            }
+            runCatching {
+                AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
+                    .onSuccess { prefs.worldTimeLastPushedOffsetSec = sec }
+            }
         }
     }
 
