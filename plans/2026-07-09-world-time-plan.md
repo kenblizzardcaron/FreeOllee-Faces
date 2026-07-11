@@ -1343,11 +1343,13 @@ git commit -m "feat(worldtime): write-on-change DST upkeep in the background cha
 
 Controller + Ken, on hardware. Rig: instrumented official app (`ollee-graphene` `CAPTURE=1` build), `adb37` (`~/.local/bin/adb37`, start `adb37-server` first), logcat tag `OLLEE_BLE`. Watch under test: `00:80:E1:26:DC:86`.
 
-- [ ] **Step 1: Confirm the world-time register.** Read `0x35` (note the 4-byte header). Change the World Time zone — via the official app if it exposes it, else on-watch on the World Time face. Read `0x35` again. Record: does the header track the zone? Units (seconds vs minutes)? Endianness? **Negative encoding** (set a zone west of UTC; home MT is UTC-6 in July): two's complement (`FF FF AB A0` for -6 h per our hypothesis) or something else?
-- [ ] **Step 2: Fallback if the header does NOT move** — register sweep: read `0x20–0x3F` before/after the zone change, diff, locate the real register. If it lives elsewhere, flag to the controller: Tasks 5/6/9's target constant changes (`TARGET_WEEKDAYS`→ the found register) but the codec/state architecture stands.
-- [ ] **Step 3: Decode `02 23` set-clock.** Trigger the official app's time sync at two known instants ≥1 min apart; diff the frames. Then change the phone's zone (not its time) and sync again — which bytes track the zone vs the wall time? Hypothesis to test first: leading `xxxxxxxx` = timestamp; `A0AB FFFF CC9C 0000` block may embed the home offset. Record the full byte layout, and what the trailing ASCII (`"He…"`) is.
-- [ ] **Step 4: Deliberate bug repro (regression baseline).** On a build *predating Task 5*: set World Time on-watch to anything ≠ +9, push a badge, confirm the face flips to +9. Then on the Wave A build: repeat and confirm the face *keeps* the app's active zone.
-- [ ] **Step 5: Hand results to Task 11.**
+**DONE 2026-07-10 — results below. Full record: scratchpad `phase0-findings.md`.**
+
+- [x] **Step 1: World-time register — CONFIRMED.** `0x34`/`0x35` header = World Time UTC offset, big-endian two's-complement **seconds**. Verified `00007E90`=+9:00, `FFFFABA0`=-6:00, `00004D58`=+5:30 (each round-tripped and drove the face). `WorldTimeCodec` needs no change. Caveat: an on-watch zone change does NOT appear in `0x35` (stored elsewhere) — foreground reconcile can't adopt on-watch changes; app stays authoritative (matches spec's accepted trade-off).
+- [x] ~~**Step 2: register sweep fallback**~~ **RETIRED AS UNSAFE.** An empty-payload read to one of `0x20`–`0x22` put the watch into its **bootloader** ("boot" screen); recovery needed a firmware re-flash via the official app. Never sweep unknown registers on this firmware. Moot anyway — Step 1 confirmed the register.
+- [x] **Step 3: `02 23` set-clock — DECODED (CRC-validated, current 1.0.6 layout).** Captured via HCI snoop (Method B), not the instrumented build. Payload is 20 bytes, **all little-endian**: `[0:4]` LE u32 unix `now`; `[4:8]` LE s32 UTC offset seconds (home; two's complement); `[8:12]` latitude ×1000; `[12:16]` longitude ×1000; `[16:18]` `0300` constant; `[18:20]` `FFFF` constant (1.0.5 omitted it). Lat/long confirmed vs `dumpsys location`. Golden vector in Task 12.
+- [ ] **Step 4: Deliberate bug repro** — NOT run; mechanism already proven (register's initial value was `00007E90`=+9, the replayed constant). Optional on-device regression folded into Task 14; skipped today after the bootloader scare.
+- [x] **Step 5: Results handed to Tasks 11/12** (Task 11 committed: `b9c8006`).
 
 ---
 
@@ -1377,12 +1379,37 @@ git commit -m "docs(protocol): world-time header + set-clock layouts verified on
 - Test: `app/src/commonTest/kotlin/com/blizzardcaron/freeolleefaces/worldtime/SetClockTest.kt`
 
 **Interfaces:**
-- Consumes: `OlleeProtocol.buildRawPacket`, the byte layout from Task 10 Step 3.
-- Produces: `object SetClock { fun build(nowMs: Long, offsetSec: Int): ByteArray }` — a frame that sets the watch clock to the wall time of UTC+`offsetSec` at instant `nowMs`.
+- Consumes: `OlleeProtocol.buildRawPacket`.
+- Produces: `object SetClock { fun build(nowMs: Long, offsetSec: Int, latE3: Int, lonE3: Int): ByteArray }` — a frame that sets the watch clock to the wall time of UTC+`offsetSec` at instant `nowMs`, carrying the phone position `latE3`/`lonE3` (degrees × 1000, truncated toward zero) for the Sun & Moon face.
 
-**The payload layout comes from Task 10** — the controller fills in the exact field code before dispatching this task, using a capture-derived golden vector as the test's expected bytes (one captured frame + the instant/zone it was captured at = a perfect golden test). Structure (test-first, same 5-step cycle as Task 2): golden-vector test from the capture → failing run → implement `build` → passing run → detekt + commit `feat(worldtime): 02 23 set-clock builder (layout verified on-device)`.
+**Decoded layout (Task 10 Step 3, on-device-verified 2026-07-10).** Inner = `02 23` + a 20-byte
+payload, **all little-endian**, then framed by `buildRawPacket` (which prepends `00 LEN AA 55`
++ CRC-16/CCITT-FALSE and sets `LEN = inner_len + 4 = 0x1a`):
 
-**Do not dispatch before Task 10 data exists** — the body cannot be written from the hypothesis alone.
+```
+[0:4]   LE  uint32  nowMs / 1000                 (Unix epoch seconds)
+[4:8]   LE  int32   offsetSec                     (two's complement, e.g. -21600 = -6h)
+[8:12]  LE  int32   latE3                         (latitude  × 1000, e.g. 40140)
+[12:16] LE  int32   lonE3                         (longitude × 1000, e.g. -105144)
+[16:18] LE          0x0003                        (constant flag; hard-code, comment as replay)
+[18:20]             0xFFFF                         (constant; hard-code, comment as replay)
+```
+
+**Golden vector for the test** (assert exact bytes):
+`build(nowMs = 1_783_729_820_000, offsetSec = -21600, latE3 = 40140, lonE3 = -105144)`
+→ `001aaa55fb5302239c8e516aa0abffffcc9c00004865feff0300ffff`.
+
+Test-first (same 5-step cycle as Task 2): golden-vector test → failing run → implement `build`
+→ passing run → detekt + commit `feat(worldtime): 02 23 set-clock builder (layout verified on-device)`.
+Keep the two constant fields as named consts with a `// captured constant; meaning unconfirmed`
+comment — do NOT silently bake an opaque blob (that pattern caused #34).
+
+**Location sourcing (for Task 13, not this task):** reuse the existing
+`location/LocationProvider.fetch(): Result<Coords>` (`Coords.lat`/`.lng`) — FreeOllee already
+has it (weather/activity) with fine+coarse permissions. Task 13's `toggleSwap` fetches a fix and
+passes `(lat*1000).toInt()`, `(lng*1000).toInt()`; on `Result.failure` (no permission/fix) it
+aborts the swap with the existing "send failed"-style status rather than writing 0/0 (which would
+corrupt the watch's Sun & Moon position). Keep `SetClock.build` pure — coordinates are inputs.
 
 ---
 
