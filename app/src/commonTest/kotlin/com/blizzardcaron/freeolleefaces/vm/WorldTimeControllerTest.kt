@@ -134,7 +134,8 @@ class WorldTimeControllerTest {
     fun reconcileAdoptsOnWatchChange() = runTest(testScheduler) {
         prefs.worldTimeSlots = listOf("Asia/Tokyo", "Europe/Berlin")
         prefs.worldTimeActiveZone = "Asia/Tokyo"
-        // Watch reports +2h (Berlin in July) — user changed it on-watch.
+        // Last write was Tokyo (+9h), but watch now reports Berlin (+2h) — user changed it on-watch.
+        prefs.worldTimeLastPushedOffsetSec = 9 * 3600
         ble.awaitResult = Result.success(weekdayReplyFrame(WorldTimeCodec.encode(2 * 3600)))
         val c = controller(this)
         c.reconcileOnOpen()
@@ -146,12 +147,48 @@ class WorldTimeControllerTest {
     fun reconcileNoOpsWhenWatchMatches() = runTest(testScheduler) {
         prefs.worldTimeSlots = listOf("Asia/Tokyo")
         prefs.worldTimeActiveZone = "Asia/Tokyo"
+        // Watch reports +9h (our last successful write); no change, no reconcile.
+        prefs.worldTimeLastPushedOffsetSec = 9 * 3600
         ble.awaitResult = Result.success(weekdayReplyFrame(WorldTimeCodec.encode(9 * 3600)))
         val c = controller(this)
         c.reconcileOnOpen()
         testScheduler.advanceUntilIdle()
         assertEquals("Asia/Tokyo", prefs.worldTimeActiveZone)
         assertTrue(ble.sentPackets.isEmpty()) // reconcile never writes
+    }
+
+    @Test
+    fun reconcileNoOpsWhenRegisterMatchesLastPushedDespiteDstDrift() = runTest(testScheduler) {
+        // Test the DST drift bug fix: 0x35 reflects our last successful write, not a recomputed
+        // offset. If DST has since changed the zone's offset, a recomputed value would differ
+        // from the register, and the old code would incorrectly reconcile. The new code matches
+        // against lastPushed and correctly does nothing.
+        prefs.worldTimeSlots = listOf("America/Denver")
+        prefs.worldTimeActiveZone = "America/Denver"
+        // Last write was -6h (Denver in July: PDT, -6h from UTC).
+        prefs.worldTimeLastPushedOffsetSec = -6 * 3600
+        // Watch still reports -6h (our last write).
+        ble.awaitResult = Result.success(weekdayReplyFrame(WorldTimeCodec.encode(-6 * 3600)))
+        // Simulate DST transition: inject a clock value that Denver would have a different offset for
+        // (e.g. January: MST, -7h instead of -6h). The old code would compute a recomputed offset
+        // of -7h, mismatch against the watch's -6h, and incorrectly reconcile. The new code matches
+        // against lastPushed (-6h) and correctly does nothing.
+        val januaryMs = 1_735_689_600_000L // January 2025: Denver=-7h
+        val c = WorldTimeController(
+            prefs = prefs,
+            ble = ble,
+            locationProvider = location,
+            scope = this,
+            showSnackbar = {},
+            state = { state },
+            update = { t -> state = t(state) },
+            clock = FixedClock(januaryMs),
+            homeZoneId = { "America/Denver" },
+        )
+        c.reconcileOnOpen()
+        testScheduler.advanceUntilIdle()
+        assertEquals("America/Denver", prefs.worldTimeActiveZone)
+        assertTrue(ble.sentPackets.isEmpty()) // no reconcile write
     }
 
     @Test
@@ -196,6 +233,36 @@ class WorldTimeControllerTest {
         assertEquals("Asia/Tokyo", localPrefs.worldTimeActiveZone)
         val sendPacketCalls = callLog.filter { it.startsWith("ble.sendPacket") }
         assertEquals(1, sendPacketCalls.size, "only the activate push should have written: $callLog")
+    }
+
+    @Test
+    fun reconcileSkippedWhileSwapped() = runTest(testScheduler) {
+        // While swap is active (transient user control), 0x35 cannot observe the clock register
+        // changes, so reconciling could clear the swap flag without restoring the clock. Reconcile
+        // must skip while swapped is true.
+        prefs.worldTimeSlots = listOf("Asia/Tokyo")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        prefs.worldTimeSwapped = true
+        prefs.worldTimeLastPushedOffsetSec = 9 * 3600
+        val callLog = mutableListOf<String>()
+        val localBle = FakeBleClient(callLog)
+        localBle.awaitResult = Result.success(weekdayReplyFrame(WorldTimeCodec.encode(2 * 3600)))
+        val c = WorldTimeController(
+            prefs = prefs,
+            ble = localBle,
+            locationProvider = location,
+            scope = this,
+            showSnackbar = {},
+            state = { state },
+            update = { t -> state = t(state) },
+            clock = FixedClock(julyMs),
+            homeZoneId = { "America/Denver" },
+        )
+        c.reconcileOnOpen()
+        testScheduler.advanceUntilIdle()
+        assertTrue(prefs.worldTimeSwapped) // swap flag untouched
+        assertTrue(callLog.none { it.startsWith("ble.sendAndAwait") },
+            "reconcile must not read the watch while swapped: $callLog")
     }
 
     @Test

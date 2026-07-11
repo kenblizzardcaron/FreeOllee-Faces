@@ -82,15 +82,22 @@ class WorldTimeController(
     /** Best-effort adopt of an on-watch change at app open; silent on read failure. */
     fun reconcileOnOpen() {
         // A push we just initiated hasn't landed yet — reconciling now would adopt the watch's
-        // stale zone and revert the user's tap.
-        if (pushInFlight) return
+        // stale zone and revert the user's tap. Swap is a deliberate transient the user controls;
+        // 0x35 cannot observe the clock register, so reconciling while swapped could clear the
+        // swap flag without restoring the clock.
+        if (pushInFlight || prefs.worldTimeSwapped) return
         val addr = prefs.watchAddress ?: return
         scope.launch {
             val watchSec = WorldTimeReadback.read(ble, addr) ?: return@launch
-            val expected = WorldTimeCodec.decode(WorldTimeHeader.fromPrefs(prefs, nowMs(), homeZoneId()))
-            if (watchSec == expected) return@launch
-            prefs.saveWorldTimeState(WorldTime.reconcile(prefs.worldTimeState(), watchSec, nowMs()))
-            refreshPreviews()
+            // Compare against our last SUCCESSFUL write, not a recomputed value: 0x35 only ever
+            // reflects the phone-written offset (Phase 0), so a divergence from lastPushed is the
+            // only real signal that something external changed the register. Matching lastPushed
+            // (even after DST drift) means our write still stands — the background chain handles DST.
+            val lastPushed = prefs.worldTimeLastPushedOffsetSec ?: return@launch
+            if (watchSec != lastPushed) {
+                prefs.saveWorldTimeState(WorldTime.reconcile(prefs.worldTimeState(), watchSec, nowMs()))
+                refreshPreviews()
+            }
         }
     }
 
