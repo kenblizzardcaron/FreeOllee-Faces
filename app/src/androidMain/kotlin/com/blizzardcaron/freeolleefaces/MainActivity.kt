@@ -248,6 +248,7 @@ private fun rememberAppCallbacks(
         onWorldTimeAddSlot = viewModel.worldTime::addSlot,
         onWorldTimeRemoveSlot = viewModel.worldTime::removeSlot,
         onWorldTimeRefresh = viewModel.worldTime::refreshPreviews,
+        onWorldTimeSwap = viewModel.worldTime::toggleSwap,
     )
     val settingsCallbacks = SettingsCallbacks(
         onBack = { viewModel.navigateTo(Screen.Home) },

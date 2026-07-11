@@ -133,6 +133,7 @@ class AppViewModel(
     val worldTime = WorldTimeController(
         prefs = prefs,
         ble = ble,
+        locationProvider = location,
         scope = viewModelScope,
         showSnackbar = ::emitEvent,
         state = { state },

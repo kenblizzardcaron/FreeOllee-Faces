@@ -1,11 +1,13 @@
 package com.blizzardcaron.freeolleefaces.vm
 
 import com.blizzardcaron.freeolleefaces.ble.BleClient
+import com.blizzardcaron.freeolleefaces.location.LocationProvider
 import com.blizzardcaron.freeolleefaces.notifications.NotificationCount
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.ui.HomeState
 import com.blizzardcaron.freeolleefaces.ui.WorldTimeSlotUi
 import com.blizzardcaron.freeolleefaces.ui.WorldTimeUiState
+import com.blizzardcaron.freeolleefaces.worldtime.SetClock
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTime
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
@@ -23,6 +25,7 @@ import kotlinx.datetime.TimeZone
 class WorldTimeController(
     private val prefs: Prefs,
     private val ble: BleClient,
+    private val locationProvider: LocationProvider,
     private val scope: CoroutineScope,
     private val showSnackbar: (String) -> Unit,
     // state is unused by the current methods (update's `it` already supplies read access) but kept
@@ -52,13 +55,28 @@ class WorldTimeController(
         refreshPreviews()
     }
 
-    /** Chip tap: persist the intent first, then push the new offset to the watch. */
+    /**
+     * Chip tap: persist the intent first, then push the new offset to the watch. While swapped,
+     * the tapped zone drives the main clock (the Casio pair) instead of the world register alone.
+     */
     fun activate(zoneId: String) {
         if (zoneId !in prefs.worldTimeSlots) return
         prefs.worldTimeActiveZone = zoneId
         prefs.worldTimeCustomOffsetSec = null
         refreshPreviews()
-        pushHeader("World time → ${WorldTime.cityOf(zoneId)}")
+        if (prefs.worldTimeSwapped) {
+            pushSwappedPair(zoneId)
+        } else {
+            pushHeader("World time → ${WorldTime.cityOf(zoneId)}")
+        }
+    }
+
+    /** Casio swap: persist intent, then write the clock and the world register (spec §swap). */
+    fun toggleSwap() {
+        val active = prefs.worldTimeActiveZone ?: return
+        prefs.worldTimeSwapped = !prefs.worldTimeSwapped
+        refreshPreviews()
+        pushSwappedPair(active)
     }
 
     /** Best-effort adopt of an on-watch change at app open; silent on read failure. */
@@ -117,5 +135,59 @@ class WorldTimeController(
                 pushInFlight = false
             }
         }
+    }
+
+    /**
+     * Casio swap write: the main clock takes [activeZone]'s offset (or home's, on un-swap) and
+     * the world register takes the complementary value via [WorldTimeHeader]. The set-clock frame
+     * (`02 23`) carries the phone's GPS coordinates for the watch's Sun & Moon face, so this fetches
+     * a fresh fix first — inside the launch, guarded by [pushInFlight] exactly like [pushHeader] so
+     * [reconcileOnOpen] can't adopt a stale value mid-push. On a missing fix (no permission / no
+     * fix), this aborts before touching the watch: no clock write, no world-register write, no 0/0
+     * coordinates (that would corrupt the watch's Sun & Moon position). The swap intent already
+     * persisted in [toggleSwap]/[activate] stays as-is — the user retries by tapping again.
+     */
+    private fun pushSwappedPair(activeZone: String) {
+        val addr = prefs.watchAddress ?: return
+        val now = nowMs()
+        val zoneForClock = if (prefs.worldTimeSwapped) activeZone else homeZoneId()
+        val clockOffset = WorldTime.offsetSecondsOf(zoneForClock, now) ?: return
+        val header = WorldTimeHeader.fromPrefs(prefs, now, homeZoneId())
+        val count = if (prefs.notificationsEnabled) prefs.notificationCount else 0
+        pushInFlight = true
+        scope.launch {
+            try {
+                val coords = locationProvider.fetch().getOrNull()
+                if (coords == null) {
+                    showSnackbar("Location needed to set the clock — enable location and retry")
+                    return@launch
+                }
+                val latE3 = (coords.lat * COORD_E3_SCALE).toInt()
+                val lonE3 = (coords.lng * COORD_E3_SCALE).toInt()
+                val clockOk = ble.sendPacket(addr, SetClock.build(now, clockOffset, latE3, lonE3)).isSuccess
+                if (clockOk) {
+                    prefs.worldTimeLastPushedClockOffsetSec = clockOffset
+                    prefs.worldTimeSwapLatE3 = latE3
+                    prefs.worldTimeSwapLonE3 = lonE3
+                }
+                ble.sendPacket(addr, NotificationCount.packetFor(count, header))
+                    .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
+                val where = if (prefs.worldTimeSwapped) WorldTime.cityOf(activeZone) else "home"
+                showSnackbar(
+                    if (clockOk) {
+                        "Clock → $where"
+                    } else {
+                        "Send failed — long-press ALARM to wake the watch, then retry"
+                    },
+                )
+            } finally {
+                pushInFlight = false
+            }
+        }
+    }
+
+    private companion object {
+        /** Degrees → SetClock's fixed-point coordinate scale (see [SetClock.build]'s latE3/lonE3). */
+        const val COORD_E3_SCALE = 1000
     }
 }

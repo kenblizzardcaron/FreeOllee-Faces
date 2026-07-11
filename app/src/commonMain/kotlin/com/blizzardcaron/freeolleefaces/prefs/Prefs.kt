@@ -277,6 +277,58 @@ class Prefs(
             }
         }
 
+    /** The last main-clock offset (seconds) successfully written by a Casio swap set-clock write. */
+    var worldTimeLastPushedClockOffsetSec: Int?
+        get() =
+            if (settings.hasKey(KEY_WT_LAST_PUSHED_CLOCK_SEC)) {
+                settings.getInt(KEY_WT_LAST_PUSHED_CLOCK_SEC, 0)
+            } else {
+                null
+            }
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_WT_LAST_PUSHED_CLOCK_SEC)
+            } else {
+                settings.putInt(KEY_WT_LAST_PUSHED_CLOCK_SEC, value)
+            }
+        }
+
+    /**
+     * Latitude (degrees × 1000) stamped by the last successful swap clock write. The background
+     * chain reuses [worldTimeSwapLatE3]/[worldTimeSwapLonE3] so it never needs a fresh GPS fix
+     * (Task 13 addendum); null until a foreground swap has stamped a fix.
+     */
+    var worldTimeSwapLatE3: Int?
+        get() =
+            if (settings.hasKey(KEY_WT_SWAP_LAT_E3)) {
+                settings.getInt(KEY_WT_SWAP_LAT_E3, 0)
+            } else {
+                null
+            }
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_WT_SWAP_LAT_E3)
+            } else {
+                settings.putInt(KEY_WT_SWAP_LAT_E3, value)
+            }
+        }
+
+    /** Longitude (degrees × 1000) counterpart to [worldTimeSwapLatE3]. */
+    var worldTimeSwapLonE3: Int?
+        get() =
+            if (settings.hasKey(KEY_WT_SWAP_LON_E3)) {
+                settings.getInt(KEY_WT_SWAP_LON_E3, 0)
+            } else {
+                null
+            }
+        set(value) {
+            if (value == null) {
+                settings.remove(KEY_WT_SWAP_LON_E3)
+            } else {
+                settings.putInt(KEY_WT_SWAP_LON_E3, value)
+            }
+        }
+
     /** The persisted [WorldTimeState] snapshot. */
     fun worldTimeState(): WorldTimeState = WorldTimeState(
         slots = worldTimeSlots,
@@ -561,5 +613,8 @@ class Prefs(
         private const val KEY_WT_CUSTOM_SEC = "world_time_custom_offset_sec"
         private const val KEY_WT_SWAPPED = "world_time_swapped"
         private const val KEY_WT_LAST_PUSHED_SEC = "world_time_last_pushed_offset_sec"
+        private const val KEY_WT_LAST_PUSHED_CLOCK_SEC = "world_time_last_pushed_clock_offset_sec"
+        private const val KEY_WT_SWAP_LAT_E3 = "world_time_swap_lat_e3"
+        private const val KEY_WT_SWAP_LON_E3 = "world_time_swap_lon_e3"
     }
 }

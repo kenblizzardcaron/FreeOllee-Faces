@@ -2,9 +2,12 @@ package com.blizzardcaron.freeolleefaces.vm
 
 import com.blizzardcaron.freeolleefaces.ble.OlleeProtocol
 import com.blizzardcaron.freeolleefaces.fakes.FakeBleClient
+import com.blizzardcaron.freeolleefaces.fakes.FakeLocationProvider
+import com.blizzardcaron.freeolleefaces.location.Coords
 import com.blizzardcaron.freeolleefaces.notifications.NotificationCount
 import com.blizzardcaron.freeolleefaces.prefs.Prefs
 import com.blizzardcaron.freeolleefaces.ui.HomeState
+import com.blizzardcaron.freeolleefaces.worldtime.SetClock
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CompletableDeferred
@@ -47,6 +50,13 @@ class WorldTimeControllerTest {
     private val julyMs = 1_783_425_600_000L // July 2026: Denver=-6h, Tokyo=+9h
     private val prefs = Prefs(MapSettings()).apply { watchAddress = "AA:BB" }
     private val ble = FakeBleClient()
+
+    // Fixed phone fix the set-clock frame's coordinates are derived from (Task 13 addendum).
+    private val LAT_E3 = 40140
+    private val LON_E3 = -105144
+    private val location = FakeLocationProvider(
+        Result.success(Coords(lat = 40.140, lng = -105.144, accuracyM = null, provider = "fake")),
+    )
     private var state = HomeState()
 
     /** Local fixed clock — mirrors [com.blizzardcaron.freeolleefaces.ring.RingDailyStepsTest]'s FixedClock. */
@@ -67,6 +77,7 @@ class WorldTimeControllerTest {
     private fun controller(scope: kotlinx.coroutines.CoroutineScope) = WorldTimeController(
         prefs = prefs,
         ble = ble,
+        locationProvider = location,
         scope = scope,
         showSnackbar = {},
         state = { state },
@@ -158,6 +169,7 @@ class WorldTimeControllerTest {
         val c = WorldTimeController(
             prefs = localPrefs,
             ble = localBle,
+            locationProvider = location,
             scope = this,
             showSnackbar = {},
             state = { state },
@@ -184,5 +196,75 @@ class WorldTimeControllerTest {
         assertEquals("Asia/Tokyo", localPrefs.worldTimeActiveZone)
         val sendPacketCalls = callLog.filter { it.startsWith("ble.sendPacket") }
         assertEquals(1, sendPacketCalls.size, "only the activate push should have written: $callLog")
+    }
+
+    @Test
+    fun swapWritesClockToActiveZoneAndWorldToHome() = runTest(testScheduler) {
+        val c = controller(this)
+        c.addSlot("Asia/Tokyo")
+        c.activate("Asia/Tokyo")
+        testScheduler.advanceUntilIdle()
+        ble.sentPackets.clear()
+        c.toggleSwap()
+        testScheduler.advanceUntilIdle()
+        assertTrue(prefs.worldTimeSwapped)
+        // Two writes: the clock set to Tokyo time, the world register set to home (-6h).
+        assertContentEquals(SetClock.build(julyMs, 9 * 3600, LAT_E3, LON_E3), ble.sentPackets[0])
+        assertContentEquals(
+            NotificationCount.packetFor(0, WorldTimeCodec.encode(-6 * 3600)),
+            ble.sentPackets[1],
+        )
+        assertEquals(9 * 3600, prefs.worldTimeLastPushedClockOffsetSec)
+        assertEquals(LAT_E3, prefs.worldTimeSwapLatE3)
+        assertEquals(LON_E3, prefs.worldTimeSwapLonE3)
+    }
+
+    @Test
+    fun unswapRestoresBoth() = runTest(testScheduler) {
+        prefs.worldTimeSlots = listOf("Asia/Tokyo")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        prefs.worldTimeSwapped = true
+        val c = controller(this)
+        c.toggleSwap()
+        testScheduler.advanceUntilIdle()
+        assertEquals(false, prefs.worldTimeSwapped)
+        assertContentEquals(SetClock.build(julyMs, -6 * 3600, LAT_E3, LON_E3), ble.sentPackets[0])
+        assertContentEquals(
+            NotificationCount.packetFor(0, WorldTimeCodec.encode(9 * 3600)),
+            ble.sentPackets[1],
+        )
+    }
+
+    @Test
+    fun activateWhileSwappedRetargetsTheClock() = runTest(testScheduler) {
+        prefs.worldTimeSlots = listOf("Asia/Tokyo", "Europe/Berlin")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        prefs.worldTimeSwapped = true
+        val c = controller(this)
+        c.activate("Europe/Berlin")
+        testScheduler.advanceUntilIdle()
+        // Living in the world zone: the clock follows the new chip (+2h), world stays home.
+        assertContentEquals(SetClock.build(julyMs, 2 * 3600, LAT_E3, LON_E3), ble.sentPackets[0])
+        assertContentEquals(
+            NotificationCount.packetFor(0, WorldTimeCodec.encode(-6 * 3600)),
+            ble.sentPackets[1],
+        )
+    }
+
+    @Test
+    fun swapAbortsWhenLocationUnavailable() = runTest(testScheduler) {
+        location.fetchResult = Result.failure(IllegalStateException("no fix"))
+        prefs.worldTimeSlots = listOf("Asia/Tokyo")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        val c = controller(this)
+        c.toggleSwap()
+        testScheduler.advanceUntilIdle()
+        // Intent persists (toggleSwap flips it before the push ever runs); the watch write aborts.
+        assertTrue(prefs.worldTimeSwapped)
+        assertTrue(
+            ble.sentPackets.none { it.size > 7 && it[6] == 0x02.toByte() && it[7] == 0x23.toByte() },
+            "no SetClock-shaped packet should be sent when location is unavailable: ${ble.sentPackets.size} sent",
+        )
+        assertNull(prefs.worldTimeLastPushedClockOffsetSec)
     }
 }

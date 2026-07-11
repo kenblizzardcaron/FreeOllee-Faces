@@ -23,6 +23,7 @@ data class HomeCallbacks(
     val onWorldTimeAddSlot: (String) -> Unit = {},
     val onWorldTimeRemoveSlot: (String) -> Unit = {},
     val onWorldTimeRefresh: () -> Unit = {},
+    val onWorldTimeSwap: () -> Unit = {},
 )
 
 data class SettingsCallbacks(

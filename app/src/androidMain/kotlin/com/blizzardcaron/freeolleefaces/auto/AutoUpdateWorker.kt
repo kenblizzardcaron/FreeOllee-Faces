@@ -23,6 +23,7 @@ import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import com.blizzardcaron.freeolleefaces.weather.WeatherFetchError
+import com.blizzardcaron.freeolleefaces.worldtime.SetClock
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTime
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
@@ -140,6 +141,33 @@ class AutoUpdateWorker(
                 AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
                     .onSuccess { prefs.worldTimeLastPushedOffsetSec = sec }
             }
+        }
+        maybeMaintainSwappedClock(ctx, prefs, address)
+    }
+
+    /**
+     * Casio swap clock upkeep: while swapped, the main clock must track the active zone's
+     * DST-correct offset across the chain's lifetime, same as [maybeMaintainWorldTime] does for
+     * the world register. Reuses the coordinates the last foreground swap stamped in
+     * [Prefs.worldTimeSwapLatE3]/[Prefs.worldTimeSwapLonE3] (Task 13 addendum) so the Worker never
+     * needs a fresh GPS fix; skips silently if either is missing (a foreground swap re-stamps them).
+     * Fire-and-forget: never affects face scheduling or failure accounting.
+     */
+    // Each missing/unchanged precondition (not swapped, no active zone, no stamped fix, no
+    // change) bails independently; early returns are the clearest, safest form (matches
+    // ActivitySession.onSample's precedent).
+    @Suppress("ReturnCount")
+    private suspend fun maybeMaintainSwappedClock(ctx: Context, prefs: Prefs, address: String) {
+        if (!prefs.worldTimeSwapped) return
+        val activeZone = prefs.worldTimeActiveZone ?: return
+        val latE3 = prefs.worldTimeSwapLatE3 ?: return
+        val lonE3 = prefs.worldTimeSwapLonE3 ?: return
+        val nowMs = System.currentTimeMillis()
+        val sec = WorldTime.offsetSecondsOf(activeZone, nowMs) ?: return
+        if (sec == prefs.worldTimeLastPushedClockOffsetSec) return
+        runCatching {
+            AndroidBleClient(ctx).sendPacket(address, SetClock.build(nowMs, sec, latE3, lonE3))
+                .onSuccess { prefs.worldTimeLastPushedClockOffsetSec = sec }
         }
     }
 

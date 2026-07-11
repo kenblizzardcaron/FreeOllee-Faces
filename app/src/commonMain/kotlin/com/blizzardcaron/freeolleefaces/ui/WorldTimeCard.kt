@@ -71,6 +71,7 @@ internal fun WorldTimeCard(
                 if (wt.slots.isNotEmpty()) {
                     SlotChipsRow(wt, callbacks)
                 }
+                SwapSection(wt, callbacks)
             }
             if (expanded) {
                 HorizontalDivider()
@@ -129,6 +130,27 @@ private fun SlotChipsRow(wt: WorldTimeUiState, callbacks: HomeCallbacks) {
                 onClick = { callbacks.onWorldTimeActivate(slot.zoneId) },
                 label = { Text("${slot.city} ${slot.timeLabel}") },
             )
+        }
+    }
+}
+
+/**
+ * The Casio swap affordance: while swapped, a warning banner explains what's on the clock vs.
+ * the World Time face, plus a button to restore home time; otherwise a button to swap — enabled
+ * only once a world zone is active (there's nothing to put on the clock without one).
+ */
+@Composable
+private fun SwapSection(wt: WorldTimeUiState, callbacks: HomeCallbacks) {
+    val active = wt.activeZoneId?.let { zoneId -> wt.slots.firstOrNull { it.zoneId == zoneId } }
+    if (wt.swapped) {
+        Text(
+            "⚠ ${active?.city ?: "World time"} is on the clock — home (${wt.homeCity}) is in World Time",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TextButton(onClick = callbacks.onWorldTimeSwap) { Text("⇄ Restore home time") }
+    } else {
+        TextButton(onClick = callbacks.onWorldTimeSwap, enabled = wt.activeZoneId != null) {
+            Text("⇄ Swap with home")
         }
     }
 }
