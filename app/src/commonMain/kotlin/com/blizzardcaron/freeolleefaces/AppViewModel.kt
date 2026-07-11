@@ -42,6 +42,7 @@ import com.blizzardcaron.freeolleefaces.vm.ActivityController
 import com.blizzardcaron.freeolleefaces.vm.ComplicationController
 import com.blizzardcaron.freeolleefaces.vm.SettingsController
 import com.blizzardcaron.freeolleefaces.vm.TimerController
+import com.blizzardcaron.freeolleefaces.vm.WorldTimeController
 import com.blizzardcaron.freeolleefaces.vm.clockTime
 import com.blizzardcaron.freeolleefaces.vm.locLabel
 import com.blizzardcaron.freeolleefaces.vm.stepsHuman
@@ -126,6 +127,17 @@ class AppViewModel(
         update = { t -> state = t(state) },
         tempNextText = { complications.tempNextText() },
         refreshActive = { force, push -> complications.refreshActive(force, push) },
+        clock = clock,
+    )
+
+    val worldTime = WorldTimeController(
+        prefs = prefs,
+        ble = ble,
+        locationProvider = location,
+        scope = viewModelScope,
+        showSnackbar = ::emitEvent,
+        state = { state },
+        update = { t -> state = t(state) },
         clock = clock,
     )
 

@@ -149,6 +149,7 @@ private fun AppEffects(
         if (screen == Screen.Home) {
             while (true) {
                 viewModel.complications.refreshAllPreviews()
+                viewModel.worldTime.refreshPreviews()
                 delay(DASHBOARD_POLL_INTERVAL_MS)
             }
         }
@@ -160,7 +161,13 @@ private fun AppEffects(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> viewModel.onForeground()
+                Lifecycle.Event.ON_START -> {
+                    viewModel.onForeground()
+                    // Adopt any on-watch World Time change made while we were backgrounded (spec:
+                    // reconcile at app open; the poll loop must NOT repeat this — a failed push
+                    // would be silently reverted by re-adopting the watch's stale zone).
+                    viewModel.worldTime.reconcileOnOpen()
+                }
                 Lifecycle.Event.ON_STOP -> viewModel.onBackground()
                 Lifecycle.Event.ON_RESUME -> viewModel.complications.onResumeNotifications()
                 else -> {}
@@ -237,6 +244,11 @@ private fun rememberAppCallbacks(
         onToggleNotifications = { viewModel.complications.setNotificationsEnabled(it) },
         onNotificationsUpdateNow = { viewModel.complications.pushCountIfWatch() },
         onReconnect = { viewModel.onReconnect() },
+        onWorldTimeActivate = viewModel.worldTime::activate,
+        onWorldTimeAddSlot = viewModel.worldTime::addSlot,
+        onWorldTimeRemoveSlot = viewModel.worldTime::removeSlot,
+        onWorldTimeRefresh = viewModel.worldTime::refreshPreviews,
+        onWorldTimeSwap = viewModel.worldTime::toggleSwap,
     )
     val settingsCallbacks = SettingsCallbacks(
         onBack = { viewModel.navigateTo(Screen.Home) },

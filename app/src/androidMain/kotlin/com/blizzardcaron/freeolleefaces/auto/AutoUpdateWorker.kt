@@ -23,6 +23,10 @@ import com.blizzardcaron.freeolleefaces.ring.stepsIfEnabled
 import com.blizzardcaron.freeolleefaces.weather.OpenMeteoClient
 import com.blizzardcaron.freeolleefaces.weather.RetryPolicy
 import com.blizzardcaron.freeolleefaces.weather.WeatherFetchError
+import com.blizzardcaron.freeolleefaces.worldtime.SetClock
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTime
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeHeader
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -59,6 +63,7 @@ class AutoUpdateWorker(
         // whatever schedule the active face arms and never affects that face's success/scheduling.
         maybePushNotificationCount(ctx, prefs, address)
         maybeReconcileAutoSleep(ctx, prefs, address)
+        maybeMaintainWorldTime(ctx, prefs, address)
         val now = nowLocal()
 
         return when {
@@ -105,8 +110,64 @@ class AutoUpdateWorker(
     private suspend fun maybePushNotificationCount(ctx: Context, prefs: Prefs, address: String?) {
         if (!prefs.notificationsEnabled || address == null || inSleepNow(prefs)) return
         val count = if (AndroidNotificationAccess(ctx).isGranted()) prefs.notificationCount else 0
+        val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
         runCatching {
-            AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count))
+            AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
+                .onSuccess { prefs.worldTimeLastPushedOffsetSec = WorldTimeCodec.decode(header) }
+        }
+    }
+
+    /**
+     * Best-effort write-on-change keeper of the World Time offset across DST transitions.
+     * When the badge overlay is enabled, [maybePushNotificationCount] already re-stamps the
+     * header every run and this is a no-op via the lastPushed dedupe; it matters when the
+     * overlay is off (or access revoked), where nothing else would refresh the register.
+     * Fire-and-forget: never affects face scheduling or failure accounting.
+     */
+    private suspend fun maybeMaintainWorldTime(ctx: Context, prefs: Prefs, address: String?) {
+        if (address == null || inSleepNow(prefs)) return
+        // Never seed the register from the home-offset fallback: until the user configures
+        // world time (or a reconcile adopts the on-watch value) and we've pushed a baseline,
+        // the on-watch zone is theirs, not ours (whole-branch review, issue #34 variant).
+        if (!WorldTime.isConfigured(prefs.worldTimeState()) && prefs.worldTimeLastPushedOffsetSec == null) return
+        val header = WorldTimeHeader.fromPrefs(prefs, System.currentTimeMillis())
+        WorldTimeCodec.decode(header)?.takeIf { it != prefs.worldTimeLastPushedOffsetSec }?.let { sec ->
+            val count = if (prefs.notificationsEnabled && AndroidNotificationAccess(ctx).isGranted()) {
+                prefs.notificationCount
+            } else {
+                0
+            }
+            runCatching {
+                AndroidBleClient(ctx).sendPacket(address, NotificationCount.packetFor(count, header))
+                    .onSuccess { prefs.worldTimeLastPushedOffsetSec = sec }
+            }
+        }
+        maybeMaintainSwappedClock(ctx, prefs, address)
+    }
+
+    /**
+     * Casio swap clock upkeep: while swapped, the main clock must track the active zone's
+     * DST-correct offset across the chain's lifetime, same as [maybeMaintainWorldTime] does for
+     * the world register. Reuses the coordinates the last foreground swap stamped in
+     * [Prefs.worldTimeSwapLatE3]/[Prefs.worldTimeSwapLonE3] (Task 13 addendum) so the Worker never
+     * needs a fresh GPS fix; skips silently if either is missing (a foreground swap re-stamps them).
+     * Fire-and-forget: never affects face scheduling or failure accounting.
+     */
+    // Each missing/unchanged precondition (not swapped, no active zone, no stamped fix, no
+    // change) bails independently; early returns are the clearest, safest form (matches
+    // ActivitySession.onSample's precedent).
+    @Suppress("ReturnCount")
+    private suspend fun maybeMaintainSwappedClock(ctx: Context, prefs: Prefs, address: String) {
+        if (!prefs.worldTimeSwapped) return
+        val activeZone = prefs.worldTimeActiveZone ?: return
+        val latE3 = prefs.worldTimeSwapLatE3 ?: return
+        val lonE3 = prefs.worldTimeSwapLonE3 ?: return
+        val nowMs = System.currentTimeMillis()
+        val sec = WorldTime.offsetSecondsOf(activeZone, nowMs) ?: return
+        if (sec == prefs.worldTimeLastPushedClockOffsetSec) return
+        runCatching {
+            AndroidBleClient(ctx).sendPacket(address, SetClock.build(nowMs, sec, latE3, lonE3))
+                .onSuccess { prefs.worldTimeLastPushedClockOffsetSec = sec }
         }
     }
 

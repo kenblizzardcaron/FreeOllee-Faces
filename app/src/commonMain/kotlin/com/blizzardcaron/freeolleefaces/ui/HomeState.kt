@@ -57,6 +57,23 @@ data class HomeState(
     val lng: String = "",
 
     val versionLabel: String = "",
+
+    val worldTime: WorldTimeUiState = WorldTimeUiState(),
+)
+
+data class WorldTimeSlotUi(
+    val zoneId: String,
+    val city: String,
+    val timeLabel: String,
+    val offsetLabel: String,
+)
+
+data class WorldTimeUiState(
+    val slots: List<WorldTimeSlotUi> = emptyList(),
+    val activeZoneId: String? = null,
+    val customOffsetLabel: String? = null,
+    val swapped: Boolean = false,
+    val homeCity: String = "",
 )
 
 private const val MINUTES_PER_HOUR = 60

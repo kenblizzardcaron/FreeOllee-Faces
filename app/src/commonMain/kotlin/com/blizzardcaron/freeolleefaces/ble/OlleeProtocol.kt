@@ -40,7 +40,7 @@ object OlleeProtocol {
     // app writes it at 0x34 behind a 4-byte 00 00 7E 90 prefix. Foundation for a future custom
     // 2-char always-on label; no UI/face uses it yet.
     const val TARGET_WEEKDAYS = 0x34
-    private val WEEKDAY_PREFIX = byteArrayOf(0x00, 0x00, 0x7E, 0x90.toByte())
+    const val TARGET_GET_WEEKDAYS = 0x35
 
     /** Timer-face slots (10 countdown durations) — write target. Ack at 0x46. */
     const val TARGET_TIMERS = 0x26
@@ -82,6 +82,9 @@ object OlleeProtocol {
     /** Config-register read/write (settings bitmask + autosleep period). Reply at 0x52. */
     const val TARGET_GET_CONFIG = 0x32
     const val TARGET_SET_CONFIG = 0x33
+
+    /** Set the watch's clock to the wall time at a given UTC offset and coordinates. */
+    const val TARGET_SET_CLOCK = 0x23
 
     // Layout of the 0x52 config payload — confirmed on-device 2026-06-18 (see Task 1 note).
     private const val CONFIG_BITMASK_OFFSET = 0 // 4-byte big-endian settings word
@@ -214,18 +217,28 @@ object OlleeProtocol {
     /** The `02 <target>` read-request frame (no payload). Reply arrives with target `+0x20`. */
     fun readRequest(target: Int): ByteArray = buildRawPacket(target, ByteArray(0))
 
+    /** Byte width of the weekday-register header (the World Time offset — see WorldTimeCodec). */
+    const val WEEKDAY_HEADER_SIZE = 4
+
     /**
      * Builds the weekday-table write (0x34). [slots] must be 7 entries of exactly 2 ASCII chars,
      * in Mon..Sun order (captured default: `MO TU WE TH FR SA SU`). The firmware shows the slot
      * matching the current date in the upper-left letter pair. Pass all-identical slots (e.g.
      * `List(7){"TE"}`) to make the panel show a fixed 2-char label regardless of weekday.
+     *
+     * [header] is the register's 4-byte prefix — the World Time offset (WorldTimeCodec). Every
+     * caller must pass the app-computed value (WorldTimeHeader.fromPrefs); replaying the captured
+     * constant `00 00 7E 90` is the issue-#34 bug that reset World Time to +9:00 on every push.
      */
-    fun buildWeekdayPacket(slots: List<String>): ByteArray {
+    fun buildWeekdayPacket(slots: List<String>, header: ByteArray): ByteArray {
+        require(header.size == WEEKDAY_HEADER_SIZE) {
+            "weekday header must be $WEEKDAY_HEADER_SIZE bytes (got ${header.size})"
+        }
         require(slots.size == 7) { "weekday table needs 7 slots (got ${slots.size})" }
         require(slots.all { it.length == 2 && it.all { c -> c.code in 0..ASCII_MAX } }) {
             "each slot must be exactly 2 ASCII chars (got $slots)"
         }
-        val payload = WEEKDAY_PREFIX + slots.joinToString("").toByteArray(Charsets.US_ASCII)
+        val payload = header + slots.joinToString("").toByteArray(Charsets.US_ASCII)
         return buildRawPacket(TARGET_WEEKDAYS, payload)
     }
 

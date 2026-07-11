@@ -44,12 +44,12 @@ answered/acked at `target + 0x20`.
 | `02 30` → `50` | R | `0000138800` | (unknown) | capture-confirmed (2026-05-31) |
 | `02 32` → `52` | R | `0206 7182 0000 0078 FFFF 0000` | **TARGET_GET_CONFIG** — settings + autosleep config register (read): 4-byte BE settings bitmask (`CONFIG_BIT_AUTOSLEEP` = bit 6) followed by a 4-byte BE autosleep period in seconds | on-device-verified (2026-06-18) |
 | `02 33` → `53` | W | settings bitmask + autosleep period (same layout as `0x52`) | **TARGET_SET_CONFIG** — read-modify-write of the config register; FreeOllee-Faces only touches the autosleep bit/period, leaving other bytes intact | on-device-verified (2026-06-18) |
-| `02 34` | W | `00007E90` + `"MOTUWETHFRSASU"` | write weekday-name strings | capture-confirmed (2026-05-31) |
-| `02 35` → `55` | R | `00007E90` + `"MOTUWETHFRSASU"` | read weekday-name strings | capture-confirmed (2026-05-31) |
+| `02 34` | W | 4-byte header + `"MOTUWETHFRSASU"` | **weekday-name register — the 4-byte header is the World Time UTC offset** (big-endian two's-complement **seconds**), sharing this register with the weekday strings. `00007E90`=+9:00, `FFFFABA0`=-6:00, `00004D58`=+5:30. **Root cause of issue #34:** badge pushes rewrite this register and older code replayed `00007E90` verbatim, resetting World Time to +9. | **on-device-verified (2026-07-10)** |
+| `02 35` → `55` | R | 4-byte offset header + `"MOTUWETHFRSASU"` | read weekday register / World Time offset (`TARGET_GET_WEEKDAYS`). Note: reflects only the phone-written offset; an on-watch zone change is stored elsewhere and does NOT appear here. | **on-device-verified (2026-07-10)** |
 | `02 36` | W | face-record table (below) | **write enabled-faces config** | capture-confirmed (2026-05-31) |
 | `02 37` → `57` | R | face-record table | read enabled-faces config | capture-confirmed (2026-05-31) |
 | `02 39` → `59` | R | `002D` | (unknown) | capture-confirmed (2026-05-31) |
-| `02 23` | W | `xxxxxxxx A0AB FFFF CC9C 0000` + `"He…"` | set clock / time | capture-confirmed (2026-05-31) |
+| `02 23` | W | 20-byte payload, all little-endian (see below) | **set clock / time + location** (`TARGET_SET_CLOCK`) | **on-device-verified (2026-07-10)** |
 
 ## Faces table (`02 36` write / `02 37`→`57` read)
 
@@ -132,6 +132,27 @@ it flips only the autosleep bit and rewrites the period bytes, leaving every oth
 byte (DND, gestures, pedometer, BLE-continuous, …) untouched. Allowed period values, per the
 official app's picker: `5, 10, 30, 60, 120` seconds (`CONFIG_PERIOD_VALUES_SEC`); a period is
 only required/validated when autosleep is being enabled.
+
+### Set-clock (`TARGET_SET_CLOCK = 0x23`)
+
+The official app writes this on every connect/sync. **All fields little-endian.** Decoded from
+HCI-snoop captures of official app 1.0.6, cross-checked against four 1.0.5 captures (2026-07-10):
+
+```
+bytes  0-3 : now,          LE uint32  Unix epoch seconds
+bytes  4-7 : utc_offset,   LE int32   home UTC offset seconds (two's complement; e.g. FFFFABA0 = -21600 = -6h)
+bytes  8-11: latitude,     LE int32   degrees × 1000  (e.g. 40140 = 40.140°N)
+bytes 12-15: longitude,    LE int32   degrees × 1000  (e.g. FFFE6548 = -105144 = -105.144°W)
+bytes 16-17: 0x0003        LE uint16  constant flag (unknown; replay)
+bytes 18-19: 0xFFFF                   trailing, added in 1.0.6 (1.0.5 omitted it); constant (replay)
+```
+
+Note the offset uses the same two's-complement-seconds encoding as the World Time header
+(`0x34`), but **little-endian here** vs big-endian there. The frame also carries the phone's
+GPS position (for the Sun & Moon face), confirmed against `dumpsys location`. CRC-16/CCITT-FALSE
+over the inner bytes as usual. Golden vector (LEN `0x1a`):
+`001aaa55fb5302239c8e516aa0abffffcc9c00004865feff0300ffff` =
+`build(now=1783729820, offset=-21600, lat×1000=40140, lon×1000=-105144)`.
 
 ## Temperature face — can it show outdoor weather? (RESOLVED: no)
 

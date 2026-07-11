@@ -64,11 +64,13 @@ object NotificationCount {
 
     /**
      * The weekday-table BLE packet for [n]: the formatted count in all 7 slots (so it shows
-     * regardless of the current day), or the real weekday table when [n] is zero.
+     * regardless of the current day), or the real weekday table when [n] is zero. [header] is
+     * the register's World Time offset prefix — always pass the app-computed value
+     * (WorldTimeHeader.fromPrefs); see issue #34.
      */
-    fun packetFor(n: Int): ByteArray {
+    fun packetFor(n: Int, header: ByteArray): ByteArray {
         val label = format(n)
         val slots = if (label == null) REAL_WEEKDAYS else List(WEEKDAY_SLOT_COUNT) { label }
-        return OlleeProtocol.buildWeekdayPacket(slots)
+        return OlleeProtocol.buildWeekdayPacket(slots, header)
     }
 }

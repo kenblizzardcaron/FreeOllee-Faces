@@ -1,6 +1,7 @@
 package com.blizzardcaron.freeolleefaces.notifications
 
 import com.blizzardcaron.freeolleefaces.ble.OlleeProtocol
+import com.blizzardcaron.freeolleefaces.worldtime.WorldTimeCodec
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -83,16 +84,25 @@ class NotificationCountTest {
 
     @Test fun packetForCountFillsAllSevenSlots() {
         // 3 notifications -> left-aligned "3 " in every weekday slot.
-        val expected = OlleeProtocol.buildWeekdayPacket(List(7) { "3 " })
-        assertContentEquals(expected, NotificationCount.packetFor(3))
+        val header = WorldTimeCodec.encode(32_400)
+        val expected = OlleeProtocol.buildWeekdayPacket(List(7) { "3 " }, header)
+        assertContentEquals(expected, NotificationCount.packetFor(3, header))
     }
 
     @Test fun packetForZeroRestoresRealWeekdays() {
-        val expected = OlleeProtocol.buildWeekdayPacket(NotificationCount.REAL_WEEKDAYS)
-        assertContentEquals(expected, NotificationCount.packetFor(0))
+        val header = WorldTimeCodec.encode(32_400)
+        val expected = OlleeProtocol.buildWeekdayPacket(NotificationCount.REAL_WEEKDAYS, header)
+        assertContentEquals(expected, NotificationCount.packetFor(0, header))
     }
 
     @Test fun realWeekdaysAreTheCapturedDefault() {
         assertEquals(listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU"), NotificationCount.REAL_WEEKDAYS)
+    }
+
+    @Test
+    fun packetForStampsTheGivenHeaderNotTheCaptureConstant() {
+        val header = WorldTimeCodec.encode(-21_600)
+        val packet = NotificationCount.packetFor(3, header)
+        assertContentEquals(header, packet.copyOfRange(8, 12))
     }
 }
