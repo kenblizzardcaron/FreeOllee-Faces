@@ -50,8 +50,18 @@ class WorldTimeController(
     }
 
     fun removeSlot(zoneId: String) {
+        val wasActive = prefs.worldTimeActiveZone == zoneId
         prefs.worldTimeSlots = prefs.worldTimeSlots - zoneId
-        if (prefs.worldTimeActiveZone == zoneId) prefs.worldTimeActiveZone = null
+        if (wasActive) prefs.worldTimeActiveZone = null
+        // Removing the swapped-in zone would strand the watch's main clock on a zone we no longer
+        // track, with no chip left to un-swap from. Un-swap: clear the flag and restore home time
+        // to the clock (pushSwappedPair sees swapped=false and writes home to the clock register).
+        if (wasActive && prefs.worldTimeSwapped) {
+            prefs.worldTimeSwapped = false
+            refreshPreviews()
+            pushSwappedPair(zoneId)
+            return
+        }
         refreshPreviews()
     }
 

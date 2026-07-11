@@ -131,6 +131,42 @@ class WorldTimeControllerTest {
     }
 
     @Test
+    fun removeActiveSlotWhileSwappedUnswapsAndRestoresHomeClock() = runTest(testScheduler) {
+        prefs.worldTimeSlots = listOf("Asia/Tokyo")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        prefs.worldTimeSwapped = true
+        val c = controller(this)
+        ble.sentPackets.clear()
+        c.removeSlot("Asia/Tokyo")
+        testScheduler.advanceUntilIdle()
+        // Flag cleared (no stale banner) and the watch clock is pushed back to home (-6h), so it
+        // isn't stranded on the removed zone.
+        assertEquals(false, prefs.worldTimeSwapped)
+        assertNull(prefs.worldTimeActiveZone)
+        assertTrue(prefs.worldTimeSlots.isEmpty())
+        assertContentEquals(SetClock.build(julyMs, -6 * 3600, LAT_E3, LON_E3), ble.sentPackets[0])
+        assertContentEquals(
+            NotificationCount.packetFor(0, WorldTimeCodec.encode(-6 * 3600)),
+            ble.sentPackets[1],
+        )
+    }
+
+    @Test
+    fun removeInactiveSlotWhileSwappedLeavesSwapIntact() = runTest(testScheduler) {
+        prefs.worldTimeSlots = listOf("Asia/Tokyo", "Europe/Berlin")
+        prefs.worldTimeActiveZone = "Asia/Tokyo"
+        prefs.worldTimeSwapped = true
+        val c = controller(this)
+        ble.sentPackets.clear()
+        c.removeSlot("Europe/Berlin")
+        testScheduler.advanceUntilIdle()
+        // Removing a non-active slot doesn't touch the swap or the watch.
+        assertTrue(prefs.worldTimeSwapped)
+        assertEquals("Asia/Tokyo", prefs.worldTimeActiveZone)
+        assertTrue(ble.sentPackets.isEmpty())
+    }
+
+    @Test
     fun reconcileAdoptsOnWatchChange() = runTest(testScheduler) {
         prefs.worldTimeSlots = listOf("Asia/Tokyo", "Europe/Berlin")
         prefs.worldTimeActiveZone = "Asia/Tokyo"
