@@ -31,6 +31,11 @@ import kotlinx.coroutines.launch
  *   # target + payload hex — CRC/LEN computed here via buildRawPacket:
  *   adb shell am broadcast -a com.blizzardcaron.freeolleefaces.DEV_SEND \
  *       -f 0x01000000 --es target 25 --es payload 0000000D1E00050501C0FF0FFF
+ *
+ *   # read a register: send an empty-payload request and await the target+0x20 notify reply
+ *   # (frame is logged on OLLEE_BLE by WatchLink; the parsed payload on OLLEE_DEV):
+ *   adb shell am broadcast -a com.blizzardcaron.freeolleefaces.DEV_SEND \
+ *       -f 0x01000000 --es watch 00:80:E1:26:DC:86 --es read 35
  */
 class DevToolsReceiver : BroadcastReceiver() {
 
@@ -50,6 +55,17 @@ class DevToolsReceiver : BroadcastReceiver() {
         val address = intent.getStringExtra("watch") ?: Prefs(appSettings(ctx)).watchAddress
         if (address == null) {
             Log.w(TAG, "no watch address — pass --es watch <MAC> or set the watch in the app first")
+            return
+        }
+
+        if (intent.hasExtra("read")) {
+            val target = try {
+                intent.getStringExtra("read")!!.toInt(HEX_RADIX)
+            } catch (e: Exception) {
+                Log.e(TAG, "bad read target: ${e.message}")
+                return
+            }
+            readRegister(ctx, address, target)
             return
         }
 
@@ -77,6 +93,34 @@ class DevToolsReceiver : BroadcastReceiver() {
                         "result: FAIL ${result.exceptionOrNull()?.message}"
                     },
                 )
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    /**
+     * Sends an empty-payload read request for [target] and awaits the `target + 0x20` notify
+     * reply. The raw frame is logged on OLLEE_BLE by WatchLink; the parsed payload here.
+     */
+    private fun readRegister(ctx: Context, address: String, target: Int) {
+        val request = OlleeProtocol.readRequest(target)
+        Log.i(TAG, "READ 0x${target.toString(HEX_RADIX)} ${request.toHex()} -> $address")
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val result = AndroidBleClient(ctx).sendAndAwait(
+                    address,
+                    request,
+                    target + OlleeProtocol.RESPONSE_TARGET_OFFSET,
+                )
+                result.onSuccess { f ->
+                    Log.i(
+                        TAG,
+                        "read 0x${target.toString(HEX_RADIX)}: " +
+                            "payload=${f.payload.toHex()} crcOk=${f.crcOk}",
+                    )
+                }.onFailure { Log.e(TAG, "read 0x${target.toString(HEX_RADIX)} failed: ${it.message}") }
             } finally {
                 pending.finish()
             }
