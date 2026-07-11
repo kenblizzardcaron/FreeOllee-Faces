@@ -83,6 +83,9 @@ object OlleeProtocol {
     const val TARGET_GET_CONFIG = 0x32
     const val TARGET_SET_CONFIG = 0x33
 
+    /** Set the watch's clock to the wall time at a given UTC offset and coordinates. */
+    const val TARGET_SET_CLOCK = 0x23
+
     // Layout of the 0x52 config payload — confirmed on-device 2026-06-18 (see Task 1 note).
     private const val CONFIG_BITMASK_OFFSET = 0 // 4-byte big-endian settings word
     private const val CONFIG_PERIOD_OFFSET = 4 // autosleep_period, 4-byte big-endian uint32 (seconds)
