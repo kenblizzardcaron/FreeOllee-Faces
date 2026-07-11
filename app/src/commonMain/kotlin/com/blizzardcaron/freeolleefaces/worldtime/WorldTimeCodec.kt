@@ -1,11 +1,12 @@
 package com.blizzardcaron.freeolleefaces.worldtime
 
 /**
- * Encodes/decodes the 4-byte header of the weekday-table register (`0x34` write / `0x35` read),
- * hypothesized to be the World Time face's UTC offset in big-endian two's-complement seconds
- * (pending on-device confirmation — plans/2026-07-09-world-time-plan.md Task 10). The 2026-05-31
- * capture constant `00 00 7E 90` decodes to +32,400 s = +9:00; big-endian matches the config
- * register (`0x32`/`0x33`) convention. This is the only file that knows the encoding.
+ * Encodes/decodes the 4-byte header of the weekday-table register (`0x34` write / `0x35` read):
+ * the World Time face's UTC offset in big-endian two's-complement seconds. **On-device verified
+ * 2026-07-10** (watch `00:80:E1:26:DC:86`): writing `00 00 7E 90` (+9:00), `FF FF AB A0` (-6:00),
+ * and `00 00 4D 58` (+5:30) each read back verbatim from `0x35` and drove the World Time face to
+ * Tokyo / Mountain / Kolkata time respectively — confirming units (seconds), endianness (big),
+ * and negative encoding (two's complement). This is the only file that knows the encoding.
  */
 object WorldTimeCodec {
     const val HEADER_SIZE = 4
