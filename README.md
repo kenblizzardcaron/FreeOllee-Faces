@@ -1,3 +1,7 @@
+# Development paused
+
+I have decided to focus on supporting the Ollee Watch via [Gadgetbridge](https://gadgetbridge.org) which I think is a better long-term home. It is open to contributions, already has infrastructure for activity modes (pairing with other FOSS apps like [OpenTracks](https://opentracksapp.com), and is more likely to get visibility.
+
 # Super FreeOllee
 
 A self-contained Android companion app for the Ollee watch, talking to it directly
